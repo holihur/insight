@@ -114,6 +114,23 @@ function Linkified({ children, onFileOpen }: { children: ReactNode; onFileOpen?:
   )
 }
 
+export function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 64)
+}
+
+function headingId(children: ReactNode): string {
+  const text = Children.toArray(children)
+    .map((c) => (typeof c === "string" ? c : isValidElement(c) ? String((c.props as { children?: ReactNode })?.children ?? "") : ""))
+    .join("")
+  return slugify(text) || "section"
+}
+
 export function Markdown({
   content,
   className,
@@ -183,6 +200,26 @@ export function Markdown({
               <blockquote {...props}>
                 <Linkified onFileOpen={onFileOpen}>{children}</Linkified>
               </blockquote>
+            )
+          },
+          h2({ children, ...props }) {
+            const id = headingId(children)
+            return (
+              <h2 id={id} {...props} className={cn("group scroll-mt-20", (props as { className?: string }).className)}>
+                <a href={`#${id}`} className="no-underline group-hover:text-primary">
+                  <Linkified onFileOpen={onFileOpen}>{children}</Linkified>
+                </a>
+              </h2>
+            )
+          },
+          h3({ children, ...props }) {
+            const id = headingId(children)
+            return (
+              <h3 id={id} {...props} className={cn("group scroll-mt-20", (props as { className?: string }).className)}>
+                <a href={`#${id}`} className="no-underline group-hover:text-primary">
+                  <Linkified onFileOpen={onFileOpen}>{children}</Linkified>
+                </a>
+              </h3>
             )
           },
           a({ href, children, ...props }) {

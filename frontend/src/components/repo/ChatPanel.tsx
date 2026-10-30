@@ -17,6 +17,8 @@ import {
   Wrench,
   Copy,
   X,
+  Pencil,
+  RefreshCw,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -186,6 +188,8 @@ export function ChatPanel({
   const { t } = useI18n()
   const [value, setValue] = useState("")
   const [includeContext, setIncludeContext] = useState(true)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingValue, setEditingValue] = useState("")
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const demo = repo.demo || repo.wiki?.provider === "local"
@@ -319,15 +323,31 @@ export function ChatPanel({
           </div>
         ) : (
           <div className="space-y-5 pb-2">
-            {messages.map((message) =>
+            {messages.map((message, idx) =>
               message.role === "user" ? (
-                <div key={message.id} className="flex justify-end group/msg">
-                  <div className="max-w-[88%] whitespace-pre-wrap rounded-sm rounded-br-none bg-primary px-3.5 py-2.5 text-[13px] leading-relaxed text-primary-foreground shadow-sm">
-                    {message.parts
-                      .filter((part) => part.type === "text")
-                      .map((part) => (part.type === "text" ? part.text : ""))
-                      .join("")}
-                  </div>
+                <div key={message.id} className="flex flex-col items-end gap-1 group/msg">
+                  {editingId === message.id ? (
+                    <div className="w-[88%] rounded-sm border border-primary/30 bg-background p-2">
+                      <textarea value={editingValue} onChange={(e) => setEditingValue(e.target.value)} rows={2} className="w-full resize-none bg-transparent text-[13px] outline-none" autoFocus />
+                      <div className="mt-2 flex justify-end gap-1">
+                        <Button variant="ghost" size="sm" className="h-6 text-[11px]" onClick={() => setEditingId(null)}>取消</Button>
+                        <Button size="sm" className="h-6 text-[11px]" disabled={!editingValue.trim()} onClick={() => { const v = editingValue.trim(); setEditingId(null); if (v) onSend(v) }}>重发</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="max-w-[88%] whitespace-pre-wrap rounded-sm rounded-br-none bg-primary px-3.5 py-2.5 text-[13px] leading-relaxed text-primary-foreground shadow-sm">
+                        {message.parts
+                          .filter((part) => part.type === "text")
+                          .map((part) => (part.type === "text" ? part.text : ""))
+                          .join("")}
+                      </div>
+                      <div className="flex gap-1 opacity-0 transition-opacity group-hover/msg:opacity-100">
+                        <button type="button" onClick={() => void navigator.clipboard.writeText(message.parts.filter((p) => p.type === "text").map((p) => (p.type === "text" ? p.text : "")).join("")).catch(() => {})} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted"><Copy className="size-3" /> 复制</button>
+                        <button type="button" onClick={() => { setEditingId(message.id); setEditingValue(message.parts.filter((p) => p.type === "text").map((p) => (p.type === "text" ? p.text : "")).join("")) }} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted"><Pencil className="size-3" /> 编辑</button>
+                      </div>
+                    </>
+                  )}
                 </div>
               ) : (
                 <div className="group/msg">
@@ -335,6 +355,7 @@ export function ChatPanel({
                   {!message.streaming && (
                     <div className="ml-9 mt-1 flex gap-1 opacity-0 transition-opacity group-hover/msg:opacity-100">
                       <button type="button" onClick={() => void copyLast(message)} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted"><Copy className="size-3" /> 复制</button>
+                      {message.error && idx > 0 && (() => { const prev = [...messages].slice(0, idx).reverse().find((m) => m.role === "user"); const txt = prev ? prev.parts.filter((p) => p.type === "text").map((p) => (p.type === "text" ? p.text : "")).join("") : ""; return txt ? <button type="button" onClick={() => { if (txt) onSend(txt) }} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-rose-500 hover:bg-rose-500/10"><RefreshCw className="size-3" /> 重试</button> : null })()}
                     </div>
                   )}
                 </div>

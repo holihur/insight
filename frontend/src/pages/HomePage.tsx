@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   ArrowRight,
   ArrowUpRight,
@@ -6,6 +6,7 @@ import {
   GitBranch,
   MessageSquare,
   Radar,
+  Search,
   ShieldCheck,
   Zap,
 } from "lucide-react"
@@ -32,25 +33,53 @@ const features = [
 export function HomePage() {
   const { theme, toggle } = useAppTheme()
   const { t } = useI18n()
-  const [repos, setRepos] = useState<Repo[] | null>(null)
+  const [repos, setRepos] = useState<Repo[] | null>(() => {
+    try {
+      const raw = window.localStorage.getItem("code-insight-repos-cache")
+      if (raw) return JSON.parse(raw) as Repo[]
+    } catch { /* ignore */ }
+    return null
+  })
   const [error, setError] = useState<string | null>(null)
+  const [query, setQuery] = useState("")
+  const [status, setStatus] = useState<"all" | Repo["status"]>("all")
+  const [sort, setSort] = useState<"updated" | "name" | "files">("updated")
 
   useEffect(() => {
     let alive = true
     api
       .listRepos()
       .then((data) => {
-        if (alive) setRepos(data)
+        if (!alive) return
+        setRepos(data)
+        try { window.localStorage.setItem("code-insight-repos-cache", JSON.stringify(data)) } catch { /* ignore */ }
       })
       .catch((err: unknown) => {
         if (!alive) return
         setError(err instanceof Error ? err.message : "Could not reach the API")
-        setRepos([])
+        if (repos === null) setRepos([])
       })
     return () => {
       alive = false
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const filtered = useMemo(() => {
+    if (!repos) return null
+    let out = [...repos]
+    if (status !== "all") out = out.filter((r) => r.status === status)
+    if (query.trim()) {
+      const q = query.toLowerCase()
+      out = out.filter((r) => `${r.owner}/${r.name}`.toLowerCase().includes(q) || r.owner.toLowerCase().includes(q))
+    }
+    out.sort((a, b) => {
+      if (sort === "name") return `${a.owner}/${a.name}`.localeCompare(`${b.owner}/${b.name}`)
+      if (sort === "files") return b.stats.files - a.stats.files
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    })
+    return out
+  }, [repos, query, status, sort])
 
   return (
     <div className="min-h-dvh">
@@ -153,9 +182,11 @@ export function HomePage() {
                 <p className="mt-1 text-sm text-muted-foreground">
                   {repos === null
                     ? t("archive.loading")
-                    : repos.length === 0
-                      ? t("archive.empty")
-                      : t("archive.count", { count: repos.length })}
+                    : filtered && filtered.length !== repos.length
+                      ? `${filtered.length} / ${repos.length} ${filtered.length === 1 ? "repo" : "repos"}${query ? ` · "${query}"` : ""}`
+                      : repos.length === 0
+                        ? t("archive.empty")
+                        : t("archive.count", { count: repos.length })}
                 </p>
               </div>
               <Button variant="outline" size="sm" asChild>
@@ -164,6 +195,28 @@ export function HomePage() {
                 </a>
               </Button>
             </div>
+            {repos && repos.length > 0 && (
+              <div className="mb-5 flex flex-col gap-2 rounded-sm border border-border/60 bg-card/20 p-2 sm:flex-row sm:items-center">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索 owner/name…" className="h-8 w-full rounded-sm border border-border/70 bg-background pl-8 pr-2 text-xs outline-none placeholder:text-muted-foreground/60 focus:border-primary/40" />
+                </div>
+                <div className="flex gap-1.5">
+                  <select value={status} onChange={(e) => setStatus(e.target.value as never)} className="h-8 rounded-sm border border-border/70 bg-background px-2 text-xs outline-none focus:border-primary/40">
+                    <option value="all">全部状态</option>
+                    <option value="ready">Ready</option>
+                    <option value="generating">Generating</option>
+                    <option value="error">Failed</option>
+                    <option value="queued">Queued</option>
+                  </select>
+                  <select value={sort} onChange={(e) => setSort(e.target.value as never)} className="h-8 rounded-sm border border-border/70 bg-background px-2 text-xs outline-none focus:border-primary/40">
+                    <option value="updated">最近更新</option>
+                    <option value="name">名称</option>
+                    <option value="files">文件数</option>
+                  </select>
+                </div>
+              </div>
+            )}
 
             {error && (
               <div className="mb-4 flex items-start gap-2 rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 text-xs text-rose-500">
@@ -183,24 +236,32 @@ export function HomePage() {
                   <Skeleton key={i} className="h-48 rounded-2xl" />
                 ))}
               </div>
-            ) : repos.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-border bg-card/20 px-6 py-16 text-center">
-                <div className="mx-auto mb-4 grid size-12 place-items-center rounded-2xl border border-border/70 bg-card">
-                  <GitBranch className="size-5 text-muted-foreground/60" />
+            ) : filtered !== null && filtered.length === 0 ? (
+              repos.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-border bg-card/20 px-6 py-16 text-center">
+                  <div className="mx-auto mb-4 grid size-12 place-items-center rounded-2xl border border-border/70 bg-card">
+                    <GitBranch className="size-5 text-muted-foreground/60" />
+                  </div>
+                  <p className="font-medium">{t("archive.emptyTitle")}</p>
+                  <p className="mx-auto mt-1 max-w-sm text-sm leading-relaxed text-muted-foreground">
+                    {t("archive.emptyBody")}
+                  </p>
+                  <Button variant="outline" size="sm" className="mt-4" asChild>
+                    <a href="#analyze">
+                      {t("archive.emptyAction")} <ArrowRight />
+                    </a>
+                  </Button>
                 </div>
-                <p className="font-medium">{t("archive.emptyTitle")}</p>
-                <p className="mx-auto mt-1 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                  {t("archive.emptyBody")}
-                </p>
-                <Button variant="outline" size="sm" className="mt-4" asChild>
-                  <a href="#analyze">
-                    {t("archive.emptyAction")} <ArrowRight />
-                  </a>
-                </Button>
-              </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-border bg-card/20 px-6 py-10 text-center">
+                  <p className="font-medium">没有匹配的仓库</p>
+                  <p className="mt-1 text-sm text-muted-foreground">试试换个关键词或状态筛选</p>
+                  <Button variant="outline" size="sm" className="mt-3" onClick={() => { setQuery(""); setStatus("all") }}>清除筛选</Button>
+                </div>
+              )
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {repos.map((repo) => (
+                {(filtered ?? repos).map((repo) => (
                   <RepoCard
                     key={repo.id}
                     repo={repo}

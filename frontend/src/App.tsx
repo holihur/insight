@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { HomePage } from "@/pages/HomePage"
 import { RepoPage } from "@/pages/RepoPage"
 import { NotFoundPage } from "@/pages/NotFoundPage"
+import { FeedbackFab } from "@/components/layout/FeedbackFab"
 
 function AppFrame() {
   const { theme } = useAppTheme()
@@ -25,6 +26,7 @@ function AppFrame() {
         closeButton
         toastOptions={{ className: "font-sans" }}
       />
+      <FeedbackFab />
     </TooltipProvider>
   )
 }

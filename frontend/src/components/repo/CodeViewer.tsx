@@ -640,12 +640,34 @@ export function CodeViewer({
             ))}
           </div>
         )}
-        {!loading && error && (
-          <div className="m-5 flex items-start gap-2 rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 text-sm text-rose-500">
-            <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-            {error}
-          </div>
-        )}
+        {!loading && error && (() => {
+          const lower = error.toLowerCase()
+          const isBinary = lower.includes("binary")
+          const isLarge = lower.includes("too large")
+          const isImage = /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(path ?? "")
+          const rawURL = `https://raw.githubusercontent.com/${repo.owner}/${repo.name}/${encodeURIComponent(repo.branch || "main")}/${(path ?? "").split("/").map(encodeURIComponent).join("/")}`
+          return (
+            <div className="m-5 rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 text-sm text-rose-500">
+              <div className="flex items-start gap-2">
+                <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+              {(isBinary || isLarge) && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" asChild className="h-7 text-xs border-rose-500/30 hover:bg-rose-500/10"><a href={githubURL} target="_blank" rel="noreferrer"><ExternalLink className="size-3" /> 在 GitHub 查看</a></Button>
+                  {isImage && (
+                    <Button variant="outline" size="sm" asChild className="h-7 text-xs"><a href={rawURL} target="_blank" rel="noreferrer">打开原图</a></Button>
+                  )}
+                </div>
+              )}
+              {isBinary && isImage && (
+                <div className="mt-3 overflow-hidden rounded-sm border border-border">
+                  <img src={rawURL} alt={path ?? ""} className="max-h-[60vh] w-full object-contain bg-white" loading="lazy" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} />
+                </div>
+              )}
+            </div>
+          )
+        })()}
         {!loading && !error && file && (
           <div className="flex min-w-fit text-[12px] leading-[1.7]" onMouseUp={handleSelectUp}>
             <div className="sticky left-0 z-10 shrink-0 select-none border-r border-border/60 bg-card/60 py-4 pr-2 font-mono text-[11px] text-muted-foreground/50">
@@ -654,11 +676,12 @@ export function CodeViewer({
                 const fn = functionsByStart.get(line)
                 const isHLS = isHighlighted(line)
                 const isFind = searchSet.has(line)
+                const blameURL = `${repo.webUrl}/blame/${encodeURIComponent(repo.branch || "main")}/${path.split("/").map(encodeURIComponent).join("/")}#L${line}`
                 return (
                   <div
                     key={line}
                     className={cn(
-                      "flex h-[20.4px] items-center justify-end gap-1 pl-1 leading-[20.4px]",
+                      "group flex h-[20.4px] items-center justify-end gap-1 pl-1 leading-[20.4px]",
                       isHLS && "bg-amber-500/15",
                       !isHLS && fn?.reviewed && "bg-emerald-500/[0.06]",
                       !isHLS && isFind && "bg-amber-500/10",
@@ -693,6 +716,7 @@ export function CodeViewer({
                       <span className="size-4 shrink-0" />
                     )}
                     <button type="button" onClick={() => void copyLinkWithLine(line)} className={cn("min-w-6 text-right tabular-nums hover:text-primary", isHLS && "font-bold text-amber-600 dark:text-amber-400")}>{line}</button>
+                    <a href={blameURL} target="_blank" rel="noreferrer" className="hidden size-4 place-items-center rounded text-muted-foreground/20 hover:text-primary group-hover:grid" title="Blame - 在 GitHub 查看此行提交" aria-label="Blame"><ExternalLink className="size-2.5" /></a>
                   </div>
                 )
               })}
@@ -726,6 +750,8 @@ export function CodeViewer({
           functions={coverage?.functions ?? []}
           scrollRef={codeScrollRef}
           onJumpLine={jumpToLine}
+          highlights={highlightLines ?? undefined}
+          searchLines={searchMatches}
         />
       </div>
 

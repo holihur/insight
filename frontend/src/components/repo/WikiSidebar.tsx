@@ -13,7 +13,7 @@ import {
   Rocket,
   Search,
 } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn, formatNumber, languageColor } from "@/lib/utils"
@@ -61,6 +61,54 @@ export function WikiSidebar({
   const { t } = useI18n()
   const [query, setQuery] = useState("")
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const treeRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const [recent, setRecent] = useState<string[]>(() => {
+    try { const raw = window.localStorage.getItem(`code-insight-recent:${repo.id}`); return raw ? (JSON.parse(raw) as string[]) : [] } catch { return [] }
+  })
+  useEffect(() => {
+    if (!activeFile) return
+    setRecent((prev) => {
+      const next = [activeFile, ...prev.filter((p) => p !== activeFile)].slice(0, 6)
+      try { window.localStorage.setItem(`code-insight-recent:${repo.id}`, JSON.stringify(next)) } catch { /* ignore */ }
+      return next
+    })
+  }, [activeFile, repo.id])
+  useEffect(() => {
+    if (view !== "code") return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "/" && !e.metaKey && !e.ctrlKey && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+      }
+    }
+    window.addEventListener("keydown", handler)
+    return () => window.removeEventListener("keydown", handler)
+  }, [view])
+  const handleTreeKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    const root = treeRef.current
+    if (!root) return
+    const buttons = Array.from(root.querySelectorAll<HTMLButtonElement>("button"))
+    if (buttons.length === 0) return
+    const active = document.activeElement as HTMLElement | null
+    const idx = active ? buttons.indexOf(active as HTMLButtonElement) : -1
+    if (e.key === "ArrowDown") {
+      e.preventDefault()
+      const nxt = idx >= 0 ? buttons[Math.min(buttons.length - 1, idx + 1)] : buttons[0]
+      nxt?.focus()
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault()
+      const prev = idx >= 0 ? buttons[Math.max(0, idx - 1)] : buttons[buttons.length - 1]
+      prev?.focus()
+    } else if (e.key === "Enter" || e.key === " ") {
+      if (active && buttons.includes(active as HTMLButtonElement)) {
+        e.preventDefault()
+        ;(active as HTMLButtonElement).click()
+      }
+    } else if (e.key === "ArrowRight") {
+      // reserved for future: expand dir
+    }
+  }
 
   useEffect(() => {
     const target = activeDir ?? activeFile
@@ -176,15 +224,25 @@ export function WikiSidebar({
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
               <input
+                ref={searchInputRef}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder={t("sidebar.findFile")}
+                placeholder={t("sidebar.findFile") + " · / 聚焦"}
                 className="h-8 w-full rounded-sm border border-border/70 bg-background/60 pl-8 pr-2 text-xs outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-primary/40"
               />
             </div>
+            {recent.length > 0 && !query && (
+              <div className="mt-2 flex gap-1 overflow-x-auto pb-1">
+                {recent.map((p) => (
+                  <button key={p} type="button" onClick={() => onSelectFile(p)} className={cn("shrink-0 rounded-full border px-2 py-0.5 font-mono text-[10px]", activeFile === p ? "border-primary/40 bg-primary/10 text-primary" : "border-border/70 bg-muted/30 text-muted-foreground hover:border-primary/30")} title={p}>
+                    {p.split("/").pop()}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <ScrollArea className="min-h-0 flex-1">
-            <div className="pb-4">
+            <div ref={treeRef} onKeyDown={handleTreeKeyDown} tabIndex={-1} className="pb-4 outline-none">
               {!index && (
                 <div className="space-y-2 px-3 pt-2">
                   {[0, 1, 2, 3, 4, 5].map((i) => (
@@ -225,6 +283,7 @@ export function WikiSidebar({
                   onSelectDir={onSelectDir}
                 />
               )}
+              <p className="mt-2 px-2 font-mono text-[9px] text-muted-foreground/60">↑↓ 导航 · Enter 打开 · / 搜索</p>
             </div>
           </ScrollArea>
         </>

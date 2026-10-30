@@ -7,11 +7,15 @@ export function CodeMinimap({
   functions,
   scrollRef,
   onJumpLine,
+  highlights,
+  searchLines,
 }: {
   totalLines: number
   functions: CoverageFunction[]
   scrollRef: React.RefObject<HTMLDivElement | null>
   onJumpLine: (line: number) => void
+  highlights?: [number, number] | null
+  searchLines?: number[]
 }) {
   const [viewport, setViewport] = useState({ top: 0, height: 12 })
 
@@ -45,6 +49,21 @@ export function CodeMinimap({
         map
       </div>
       <div className="absolute inset-x-2 inset-y-3">
+        {highlights && highlights[0] <= safeTotal && (
+          <div
+            className="absolute inset-x-0 rounded-[1px] bg-amber-500/25 border border-amber-500/40"
+            style={{ top: `${((highlights[0] - 1) / safeTotal) * 100}%`, height: `${Math.max(1, ((highlights[1] - highlights[0] + 1) / safeTotal) * 100)}%` }}
+            title={`highlight ${highlights[0]}-${highlights[1]}`}
+          />
+        )}
+        {(searchLines ?? []).map((line) => (
+          <div
+            key={`search-${line}`}
+            className="absolute inset-x-0 h-0.5 bg-amber-400/70"
+            style={{ top: `${((line - 1) / safeTotal) * 100}%` }}
+            title={`search:${line}`}
+          />
+        ))}
         {functions.map((fn) => {
           if (fn.startLine > safeTotal) return null
           const top = ((fn.startLine - 1) / safeTotal) * 100
