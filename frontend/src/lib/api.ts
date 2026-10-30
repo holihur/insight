@@ -1,5 +1,6 @@
 import type {
   ChatEvent,
+  Coverage,
   FileContent,
   Health,
   IndexData,
@@ -68,6 +69,25 @@ export const api = {
     if (end) params.set("end", String(end))
     return request<FileContent>(`/repos/${id}/file?${params.toString()}`)
   },
+
+  getCoverage: (id: string, path?: string) => {
+    const params = new URLSearchParams()
+    if (path) params.set("path", path)
+    const suffix = params.toString()
+    return request<Coverage>(`/repos/${id}/coverage${suffix ? `?${suffix}` : ""}`)
+  },
+
+  reviewFunction: (id: string, functionId: string, reviewed: boolean) =>
+    request<Coverage>(`/repos/${id}/coverage/review`, {
+      method: "POST",
+      body: JSON.stringify({ functionId, reviewed }),
+    }),
+
+  updateIgnore: (id: string, patterns: string[]) =>
+    request<Repo>(`/repos/${id}/ignore`, {
+      method: "PUT",
+      body: JSON.stringify({ patterns }),
+    }),
 }
 
 export async function streamChat(

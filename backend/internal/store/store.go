@@ -148,6 +148,30 @@ func (s *Store) Delete(id string) error {
 	return nil
 }
 
+// LoadReviews returns human-review marks keyed by commit and function id.
+func (s *Store) LoadReviews(id string) (map[string]map[string]bool, error) {
+	var reviews map[string]map[string]bool
+	err := readJSON(filepath.Join(s.RepoDir(id), "reviews.json"), &reviews)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return map[string]map[string]bool{}, nil
+		}
+		return nil, err
+	}
+	if reviews == nil {
+		reviews = map[string]map[string]bool{}
+	}
+	return reviews, nil
+}
+
+// SaveReviews persists human-review marks.
+func (s *Store) SaveReviews(id string, reviews map[string]map[string]bool) error {
+	if reviews == nil {
+		reviews = map[string]map[string]bool{}
+	}
+	return writeJSON(filepath.Join(s.RepoDir(id), "reviews.json"), reviews)
+}
+
 // SaveIndex stores the static analysis snapshot.
 func (s *Store) SaveIndex(id string, idx *model.Index) error {
 	return writeJSON(filepath.Join(s.RepoDir(id), "index.json"), idx)
@@ -202,6 +226,7 @@ func cloneRepo(repo *model.Repo) *model.Repo {
 	}
 	cp := *repo
 	cp.Stats.Languages = append([]model.Language(nil), repo.Stats.Languages...)
+	cp.Ignore = append([]string(nil), repo.Ignore...)
 	if repo.Wiki != nil {
 		wiki := *repo.Wiki
 		wiki.Pages = make([]*model.Page, 0, len(repo.Wiki.Pages))

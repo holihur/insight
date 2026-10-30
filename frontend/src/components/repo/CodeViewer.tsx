@@ -6,8 +6,10 @@ import {
   FileCode2,
   FileText,
   Loader2,
+  SlidersHorizontal,
   TriangleAlert,
 } from "lucide-react"
+import { toast } from "sonner"
 import hljs from "highlight.js/lib/core"
 import go from "highlight.js/lib/languages/go"
 import typescript from "highlight.js/lib/languages/typescript"
@@ -47,9 +49,19 @@ import haskell from "highlight.js/lib/languages/haskell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Progress } from "@/components/ui/progress"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { api } from "@/lib/api"
 import { cn, formatNumber } from "@/lib/utils"
-import type { FileContent, Repo } from "@/lib/types"
+import type { Coverage, CoverageFunction, FileContent, Repo } from "@/lib/types"
 import { useI18n } from "@/i18n"
 
 const languages: Array<[string, unknown]> = [
@@ -150,7 +162,16 @@ export function CodeViewer({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [coverage, setCoverage] = useState<Coverage | null>(null)
+  const [coverageLoading, setCoverageLoading] = useState(false)
+  const [coverageError, setCoverageError] = useState<string | null>(null)
+  const [reviewing, setReviewing] = useState<string | null>(null)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [patternsText, setPatternsText] = useState((repo.ignore ?? []).join("\n"))
+  const [savingFilters, setSavingFilters] = useState(false)
   const requestRef = useRef(0)
+  const coverageRequestRef = useRef(0)
+  const codeScrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!path) {
@@ -175,9 +196,44 @@ export function CodeViewer({
       })
   }, [repo.id, path])
 
+  useEffect(() => {
+    if (!path) {
+      setCoverage(null)
+      return
+    }
+    const requestID = ++coverageRequestRef.current
+    setCoverageLoading(true)
+    setCoverageError(null)
+    api
+      .getCoverage(repo.id, path)
+      .then((data) => {
+        if (coverageRequestRef.current === requestID) setCoverage(data)
+      })
+      .catch((err: unknown) => {
+        if (coverageRequestRef.current === requestID) {
+          setCoverageError(err instanceof Error ? err.message : t("coverage.error"))
+        }
+      })
+      .finally(() => {
+        if (coverageRequestRef.current === requestID) setCoverageLoading(false)
+      })
+  }, [repo.id, path, t])
+
+  useEffect(() => {
+    setPatternsText((repo.ignore ?? []).join("\n"))
+  }, [repo.ignore])
+
   const raw = file?.content ?? ""
   const lines = useMemo(() => (raw ? raw.split("\n") : []), [raw])
   const visible = lines.slice(0, MAX_LINES)
+  const functionsByStart = useMemo(() => {
+    const map = new Map<number, CoverageFunction>()
+    for (const fn of coverage?.functions ?? []) {
+      map.set(fn.startLine, fn)
+    }
+    return map
+  }, [coverage])
+
   const highlighted = useMemo(() => {
     if (!file) return ""
     const code = visible.join("\n")
@@ -199,6 +255,41 @@ export function CodeViewer({
       window.setTimeout(() => setCopied(false), 1600)
     } catch {
       // ignore
+    }
+  }
+
+  const toggleReviewed = async (fn: CoverageFunction) => {
+    if (!coverage || reviewing) return
+    setReviewing(fn.id)
+    try {
+      const next = await api.reviewFunction(repo.id, fn.id, !fn.reviewed)
+      setCoverage(next)
+    } catch (err) {
+      setCoverageError(err instanceof Error ? err.message : t("coverage.error"))
+    } finally {
+      setReviewing(null)
+    }
+  }
+
+  const saveFilters = async () => {
+    if (savingFilters) return
+    setSavingFilters(true)
+    try {
+      const patterns = patternsText
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+      await api.updateIgnore(repo.id, patterns)
+      setFiltersOpen(false)
+      toast.success(t("coverage.saved"))
+      if (path) {
+        const next = await api.getCoverage(repo.id, path)
+        setCoverage(next)
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t("coverage.error"))
+    } finally {
+      setSavingFilters(false)
     }
   }
 
@@ -249,7 +340,78 @@ export function CodeViewer({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      {(coverage || coverageLoading || coverageError) && (
+        <div className="shrink-0 border-b border-border/60 bg-card/25 px-4 py-2">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+            <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground">
+              {t("coverage.title")}
+            </span>
+            {coverage ? (
+              <>
+                <CoverageMetric
+                  label={t("coverage.overall")}
+                  reviewed={coverage.reviewedFunctions}
+                  total={coverage.totalFunctions}
+                  percent={coverage.overallPercent}
+                />
+                {coverage.changedAvailable ? (
+                  <CoverageMetric
+                    label={t("coverage.changed")}
+                    reviewed={coverage.reviewedChanged}
+                    total={coverage.changedFunctions}
+                    percent={coverage.changedPercent}
+                  />
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">
+                    {t("coverage.unavailable")}
+                  </span>
+                )}
+                <Badge variant="outline" className="font-mono text-[9px]">
+                  {coverage.commit}
+                </Badge>
+                {coverage.ignoredFiles > 0 && (
+                  <Badge variant="secondary" className="text-[9px]">
+                    {t("coverage.ignored", { count: coverage.ignoredFiles })}
+                  </Badge>
+                )}
+              </>
+            ) : coverageError ? (
+              <span className="inline-flex items-center gap-1 text-[10px] text-amber-500">
+                <TriangleAlert className="size-3" /> {coverageError}
+              </span>
+            ) : (
+              <Skeleton className="h-3 w-48" />
+            )}
+            <div className="ml-auto flex items-center gap-2">
+              {coverage && (
+                <span className="font-mono text-[10px] text-muted-foreground">
+                  {t("coverage.functions", { count: coverage.functions.length })}
+                </span>
+              )}
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setFiltersOpen(true)}
+                aria-label={t("coverage.filtersTitle")}
+                className="text-muted-foreground"
+              >
+                <SlidersHorizontal />
+              </Button>
+            </div>
+          </div>
+          {coverage && (
+            <div className="mt-1.5 grid grid-cols-2 gap-3">
+              <Progress value={coverage.overallPercent} className="h-1" />
+              <Progress
+                value={coverage.changedAvailable ? coverage.changedPercent : 0}
+                className="h-1"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      <div ref={codeScrollRef} className="min-h-0 flex-1 overflow-auto">
         {loading && (
           <div className="space-y-2 p-5">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -272,12 +434,51 @@ export function CodeViewer({
         )}
         {!loading && !error && file && (
           <div className="flex min-w-fit text-[12px] leading-[1.7]">
-            <pre
-              aria-hidden
-              className="sticky left-0 z-10 select-none border-r border-border/60 bg-card/60 px-3 py-4 text-right font-mono text-muted-foreground/50"
-            >
-              {visible.map((_, index) => String(index + 1)).join("\n")}
-            </pre>
+            <div className="sticky left-0 z-10 shrink-0 select-none border-r border-border/60 bg-card/60 py-4 pr-2 font-mono text-[11px] text-muted-foreground/50">
+              {visible.map((_, index) => {
+                const line = index + 1
+                const fn = functionsByStart.get(line)
+                return (
+                  <div
+                    key={line}
+                    className={cn(
+                      "flex h-[20.4px] items-center justify-end gap-1 pl-1 leading-[20.4px]",
+                      fn?.reviewed && "bg-emerald-500/[0.06]",
+                    )}
+                  >
+                    {fn ? (
+                      <button
+                        type="button"
+                        onClick={() => void toggleReviewed(fn)}
+                        aria-pressed={fn.reviewed}
+                        aria-label={
+                          fn.reviewed ? t("coverage.unreviewTip") : t("coverage.reviewTip")
+                        }
+                        title={`${fn.name} · ${
+                          fn.reviewed ? t("coverage.reviewed") : t("coverage.reviewTip")
+                        }`}
+                        disabled={reviewing === fn.id}
+                        className={cn(
+                          "grid size-4 shrink-0 place-items-center rounded-[2px] border transition-colors",
+                          fn.reviewed
+                            ? "border-emerald-500/45 bg-emerald-500/15 text-emerald-500"
+                            : "border-border/80 text-muted-foreground/25 hover:border-primary/50 hover:text-primary",
+                        )}
+                      >
+                        {reviewing === fn.id ? (
+                          <Loader2 className="size-2.5 animate-spin" />
+                        ) : (
+                          <Check className={cn("size-2.5", !fn.reviewed && "opacity-50")} />
+                        )}
+                      </button>
+                    ) : (
+                      <span className="size-4 shrink-0" />
+                    )}
+                    <span className="min-w-6 text-right">{line}</span>
+                  </div>
+                )
+              })}
+            </div>
             <pre className="flex-1 overflow-x-auto px-4 py-4 font-mono">
               <code dangerouslySetInnerHTML={{ __html: highlighted }} />
             </pre>
@@ -296,7 +497,58 @@ export function CodeViewer({
           </div>
         )}
       </div>
+
+      <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t("coverage.filtersTitle")}</DialogTitle>
+            <DialogDescription>{t("coverage.filtersDesc")}</DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={patternsText}
+            onChange={(event) => setPatternsText(event.target.value)}
+            rows={8}
+            spellCheck={false}
+            className="font-mono text-[11px]"
+            placeholder={"vendor/\ndir:node_modules\npackage:internal/generated\n**/*_test.go"}
+          />
+          <p className="font-mono text-[10px] text-muted-foreground">
+            vendor/ · dir:frontend/node_modules · package:internal/generated · **/*_test.go
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFiltersOpen(false)}>
+              {t("coverage.cancel")}
+            </Button>
+            <Button onClick={() => void saveFilters()} disabled={savingFilters}>
+              {savingFilters && <Loader2 className="animate-spin" />}
+              {t("coverage.save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
+  )
+}
+
+function CoverageMetric({
+  label,
+  reviewed,
+  total,
+  percent,
+}: {
+  label: string
+  reviewed: number
+  total: number
+  percent: number
+}) {
+  return (
+    <span className="inline-flex items-center gap-1.5 text-[10px] text-muted-foreground">
+      <span className="uppercase tracking-[0.08em]">{label}</span>
+      <span className="font-mono text-foreground/80">
+        {formatNumber(reviewed)}/{formatNumber(total)}
+      </span>
+      <span className="font-mono text-primary">{percent}%</span>
+    </span>
   )
 }
 

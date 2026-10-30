@@ -23,6 +23,7 @@ import (
 	"github.com/codeinsight/code-insight/internal/agent"
 	"github.com/codeinsight/code-insight/internal/analysis"
 	"github.com/codeinsight/code-insight/internal/config"
+	covsvc "github.com/codeinsight/code-insight/internal/coverage"
 	"github.com/codeinsight/code-insight/internal/llm"
 	"github.com/codeinsight/code-insight/internal/model"
 	"github.com/codeinsight/code-insight/internal/store"
@@ -31,17 +32,18 @@ import (
 
 // Server handles HTTP requests.
 type Server struct {
-	cfg     config.Config
-	store   *store.Store
-	gen     *agent.Generator
-	chat    *agent.Chatter
-	mu      sync.Mutex
-	running map[string]bool
+	cfg      config.Config
+	store    *store.Store
+	gen      *agent.Generator
+	chat     *agent.Chatter
+	coverage *covsvc.Service
+	mu       sync.Mutex
+	running  map[string]bool
 }
 
 // New creates the API server.
-func New(cfg config.Config, st *store.Store, gen *agent.Generator, chat *agent.Chatter) *Server {
-	return &Server{cfg: cfg, store: st, gen: gen, chat: chat, running: map[string]bool{}}
+func New(cfg config.Config, st *store.Store, gen *agent.Generator, chat *agent.Chatter, cov *covsvc.Service) *Server {
+	return &Server{cfg: cfg, store: st, gen: gen, chat: chat, coverage: cov, running: map[string]bool{}}
 }
 
 // Handler builds the complete HTTP handler.
@@ -55,6 +57,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/repos/{id}/regenerate", s.regenerate)
 	mux.HandleFunc("GET /api/repos/{id}/index", s.getIndex)
 	mux.HandleFunc("GET /api/repos/{id}/file", s.getFile)
+	mux.HandleFunc("GET /api/repos/{id}/coverage", s.getCoverage)
+	mux.HandleFunc("POST /api/repos/{id}/coverage/review", s.reviewFunction)
+	mux.HandleFunc("PUT /api/repos/{id}/ignore", s.updateIgnore)
 	mux.HandleFunc("POST /api/repos/{id}/chat", s.chatStream)
 	mux.Handle("/", s.staticHandler())
 
@@ -271,6 +276,78 @@ func (s *Server) getFile(w http.ResponseWriter, r *http.Request) {
 		End:      end,
 		Total:    total,
 	})
+}
+
+func (s *Server) getCoverage(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, err := s.store.Get(id); err != nil {
+		writeError(w, http.StatusNotFound, "repository not found")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
+	defer cancel()
+	data, err := s.coverage.Get(ctx, id, r.URL.Query().Get("path"))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, data)
+}
+
+func (s *Server) reviewFunction(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var req struct {
+		FunctionID string `json:"functionId"`
+		Reviewed   bool   `json:"reviewed"`
+	}
+	if err := decodeJSON(w, r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if strings.TrimSpace(req.FunctionID) == "" {
+		writeError(w, http.StatusBadRequest, "functionId is required")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
+	defer cancel()
+	data, err := s.coverage.SetReview(ctx, id, req.FunctionID, req.Reviewed)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, data)
+}
+
+func (s *Server) updateIgnore(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	var req struct {
+		Patterns []string `json:"patterns"`
+	}
+	if err := decodeJSON(w, r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if len(req.Patterns) > 200 {
+		writeError(w, http.StatusBadRequest, "too many ignore patterns (max 200)")
+		return
+	}
+	cleaned := make([]string, 0, len(req.Patterns))
+	for _, pattern := range req.Patterns {
+		pattern = strings.TrimSpace(pattern)
+		if pattern == "" || len(pattern) > 300 {
+			continue
+		}
+		cleaned = append(cleaned, pattern)
+	}
+	repo, err := s.store.Update(id, func(repo *model.Repo) {
+		repo.Ignore = cleaned
+	})
+	if err != nil {
+		writeError(w, http.StatusNotFound, "repository not found")
+		return
+	}
+	s.coverage.Invalidate(id)
+	writeJSON(w, http.StatusOK, repo)
 }
 
 func (s *Server) startJob(id string, regenerate bool) bool {

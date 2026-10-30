@@ -40,6 +40,7 @@ type Repo struct {
 	Error     string     `json:"error,omitempty"`
 	Demo      bool       `json:"demo"`
 	Provider  string     `json:"provider"`
+	Ignore    []string   `json:"ignore,omitempty"`
 	CreatedAt time.Time  `json:"createdAt"`
 	UpdatedAt time.Time  `json:"updatedAt"`
 	Stats     Stats      `json:"stats"`
@@ -119,4 +120,32 @@ type FileContent struct {
 	Start    int    `json:"start"`
 	End      int    `json:"end"`
 	Total    int    `json:"total"`
+}
+
+// Function is a reviewable function or method discovered in a source file.
+type Function struct {
+	ID        string `json:"id"`
+	Path      string `json:"path"`
+	Name      string `json:"name"`
+	Kind      string `json:"kind"`
+	StartLine int    `json:"startLine"`
+	EndLine   int    `json:"endLine"`
+	Changed   bool   `json:"changed"`
+	Reviewed  bool   `json:"reviewed"`
+}
+
+// Coverage summarizes human review progress for the current commit.
+type Coverage struct {
+	Commit            string     `json:"commit"`
+	Parent            string     `json:"parent,omitempty"`
+	ChangedAvailable  bool       `json:"changedAvailable"`
+	TotalFunctions    int        `json:"totalFunctions"`
+	ReviewedFunctions int        `json:"reviewedFunctions"`
+	ChangedFunctions  int        `json:"changedFunctions"`
+	ReviewedChanged   int        `json:"reviewedChanged"`
+	OverallPercent    int        `json:"overallPercent"`
+	ChangedPercent    int        `json:"changedPercent"`
+	IgnoredFiles      int        `json:"ignoredFiles"`
+	Functions         []Function `json:"functions"`
+	UpdatedAt         string     `json:"updatedAt"`
 }

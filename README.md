@@ -14,6 +14,8 @@
 - **像问同事一样追问**：流式回答，展示它正在读哪个文件、搜什么关键词，并引用真实路径。
 - **直接在浏览器里读代码**：左侧文件树支持目录展开，右侧带行号、语法高亮、复制和跳转 GitHub。
 - **支持 Mermaid 图**：架构和调用关系可以直接渲染成图。
+- **人工覆盖率**：每个方法左侧有勾选标记，确认看过即可打勾，并实时汇总当前 commit 的**总体覆盖率**和**变更覆盖率**。
+- **忽略规则**：支持按目录、package、通配符排除，界面里的 Filters 或仓库根目录的 `.insightignore` 都可以配置。
 - **10 种界面语言**：English、简体中文、Español、हिन्दी、العربية、Português、Русский、日本語、Français、Deutsch。语言与主题切换放在页面底部。
 
 ![仓库 Wiki 页面](docs/screenshot-repo.jpg)
@@ -23,6 +25,10 @@
 ![源码浏览](docs/screenshot-code.jpg)
 
 源码视图使用同一棵目录树，文件内容带语法高亮。
+
+![人工覆盖率](docs/screenshot-coverage.jpg)
+
+每个方法左侧的勾选标记用于人工确认；顶部只显示当前 commit 的总体/变更覆盖率，不占用代码空间。
 
 ## 快速开始
 
@@ -91,6 +97,36 @@ OPENAI_MODEL=gpt-4o-mini
    - “Where is authentication handled?”
 5. 需要重新生成时点击 **Regenerate**；删除分析会同时删除本地克隆。
 6. 语言和主题切换在页面底部。
+
+## 人工覆盖率
+
+代码视图会在每个方法的起始行显示一个勾选框：
+
+- 勾选表示“这个方法我看过了”，状态按 commit 保存，同一次分析的重新打开不会丢失。
+- 顶部汇总当前 commit 的：
+  - **总体覆盖率**：已看过的方法 / 仓库内所有方法。
+  - **变更覆盖率**：已看过的变更方法 / 本次 commit 变更的方法（与父 commit 对比）。
+- 变更方法后面会显示 `changed` 标记。
+- 首个 commit 没有父 commit，因此所有方法都视为变更；无法获取父 commit 时，变更覆盖率显示为不可用。
+
+### 忽略规则
+
+点击代码覆盖率栏右侧的过滤按钮，或提交一个 `.insightignore` 文件：
+
+```text
+# 目录
+vendor/
+dir:frontend/node_modules
+
+# package（Go module / import path，或目录后缀）
+package:internal/generated
+
+# 通配符
+**/*_test.go
+**/*.pb.go
+```
+
+支持目录、package 和通配符。被忽略的文件不会计入总体覆盖率或变更覆盖率。
 
 ## 数据与隐私
 

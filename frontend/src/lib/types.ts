@@ -56,6 +56,7 @@ export interface Repo {
   createdAt: string
   updatedAt: string
   stats: Stats
+  ignore?: string[] | null
   wiki?: Wiki
 }
 
@@ -128,4 +129,31 @@ export interface Health {
   model: string
   label: string
   demo: boolean
+}
+
+
+export interface CoverageFunction {
+  id: string
+  path: string
+  name: string
+  kind: string
+  startLine: number
+  endLine: number
+  changed: boolean
+  reviewed: boolean
+}
+
+export interface Coverage {
+  commit: string
+  parent?: string
+  changedAvailable: boolean
+  totalFunctions: number
+  reviewedFunctions: number
+  changedFunctions: number
+  reviewedChanged: number
+  overallPercent: number
+  changedPercent: number
+  ignoredFiles: number
+  functions: CoverageFunction[]
+  updatedAt: string
 }
