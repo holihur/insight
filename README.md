@@ -17,6 +17,8 @@
 
 ![仓库 Wiki 页面](docs/screenshot-repo.jpg)
 
+> 上面的仓库页面就是 **Code Insight 分析它自己的仓库** 后生成的。
+
 ## 快速开始
 
 需要 [mise](https://mise.jdx.dev/) 和 `git`。
