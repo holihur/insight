@@ -17,7 +17,7 @@
 - **人工覆盖率**：每个方法左侧有勾选标记，确认看过即可打勾，并实时汇总当前 commit 的**总体覆盖率**和**变更覆盖率**。
 - **代码 minimap**：代码右侧显示文件缩略图；已人工确认的方法区块变绿，变更为金；点击即可跳转。
 - **浮动对话**：Ask 面板默认浮在底部居中，可拖动到任意位置，位置会记住，不占用代码宽度。
-- **调用关系索引**：每个 commit 单独建立函数调用图（Go、TypeScript、JavaScript）。`Ctrl/⌘ + 点击`函数名跳到定义，`Alt + 点击`查看调用了谁、被谁调用；一个名字有多个实现或调用点时弹出列表。手机上点按函数名即可选择操作。
+- **调用关系索引**：每个 commit 单独建立函数调用图，覆盖 Go、TypeScript/JavaScript、Python、Rust、Java、C/C++、C#、PHP、Ruby、Kotlin、Swift、Scala、Lua、Elixir（tree-sitter 解析）。`Ctrl/⌘ + 点击`函数名跳到定义，`Alt + 点击`查看调用了谁、被谁调用；一个名字有多个实现或调用点时弹出列表。手机上点按函数名即可选择操作。
 - **URL 深链接**：视图、Wiki 页面、文件/目录和对话状态都写入 URL，刷新或分享链接不会丢失。
 - **忽略规则**：支持按目录、package、通配符排除，界面里的 Filters 或仓库根目录的 `.insightignore` 都可以配置。
 - **10 种界面语言**：English、简体中文、Español、हिन्दी、العربية、Português、Русский、日本語、Français、Deutsch。语言与主题切换放在页面底部。
@@ -40,7 +40,7 @@
 
 ## 快速开始
 
-需要 [mise](https://mise.jdx.dev/) 和 `git`。
+需要 [mise](https://mise.jdx.dev/)、`git`，以及 C 编译器（tree-sitter 依赖 CGO，构建时需要 `gcc`/`clang`）。
 
 ```bash
 git clone https://github.com/holihur/insight.git
@@ -128,9 +128,10 @@ OPENAI_MODEL=gpt-4o-mini
 
 - 索引按 commit 持久化在 `data/<repo>/callgraph/<commit>.json`，切换 commit 自动重建，重新分析会失效。
 - **Go**：`go/ast` 精确解析，含同包、跨包、接收者和结构体字段类型。
-- **TypeScript / JavaScript**：复用覆盖率解析器提取定义（函数 ID 与覆盖率一致），调用点先屏蔽注释和字符串，再按 `import`/`require`、同文件、仓库内唯一名依次解析；`this.method()` 走同文件。
-- 接口/同名多实现、动态分发无法静态确定时会标为 `multiple` 并列出全部候选，而不是猜一个。
-- 局限：TS/JS 的 `obj.method()` 在类型未知时只能按名字匹配，泛型调用和模板字符串内的调用暂不解析；其他语言（Python、Rust、Java…）目前只提供定义入口。
+- **其他语言**：tree-sitter 语法树提取定义与调用点，注释/字符串不会误报，函数体范围按真实语法界定。
+- **TypeScript / JavaScript** 额外解析 `import`/`require`、路径别名和 `this.method()`；其他语言按「`this`/`self` 同文件 → 同文件同名 → 仓库唯一名」解析。
+- 接口方法、动态分发、类型未知的 `obj.method()` 无法静态确定时标记为 `multiple` 并列出全部候选，而不是猜一个。
+- 局限：不做类型推断，跨文件的 `pkg.fn()` 仅 TS/JS 能按 import 精确解析；同名方法可能给多个候选；Ruby 无括号调用、Elixir 宏等动态写法覆盖有限。
 - API：`GET /api/repos/{id}/calls?function=<id>`、`GET /api/repos/{id}/callsites?path=<file>`。
 
 ## 人工覆盖率

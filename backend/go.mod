@@ -4,6 +4,7 @@ go 1.27.3
 
 require (
 	github.com/google/uuid v1.6.0
+	github.com/smacker/go-tree-sitter v0.0.0-20240827094217-dd81d9e9be82
 	google.golang.org/adk v1.9.0
 	google.golang.org/genai v1.57.0
 )

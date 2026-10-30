@@ -64,11 +64,15 @@ type jsImport struct {
 
 type jsFile struct {
 	path       string
+	lang       string
 	content    string
 	funcs      []jsFunc
 	imports    map[string]jsImport
 	lineStarts []int
 	defs       map[int]bool // absolute offsets of definition tokens
+	tsDefs     []tsDef
+	tsCalls    []tsCall
+	tsParsed   bool
 }
 
 type jsIndex struct {
@@ -96,8 +100,10 @@ func isJSFile(filePath string) bool {
 	return jsExts[path.Ext(lower)]
 }
 
-func (idx *jsIndex) addFile(filePath string, content []byte) {
-	idx.files[filePath] = &jsFile{path: filePath, content: string(content), defs: map[int]bool{}}
+func (idx *jsIndex) addFile(filePath, lang string, content []byte) {
+	idx.files[filePath] = &jsFile{
+		path: filePath, lang: lang, content: string(content), defs: map[int]bool{},
+	}
 }
 
 // buildJS indexes TS/JS definitions, imports and calls.
@@ -114,6 +120,14 @@ func (b *builder) buildJS() {
 		file.lineStarts = lineStartsOf(file.content)
 		lang := analysis.LanguageFor(filePath)
 		funcs := analysis.ExtractFunctions(filePath, []byte(file.content), lang)
+		defs, calls, parsed := extractTS(filePath, lang, []byte(file.content))
+		file.tsDefs, file.tsCalls, file.tsParsed = defs, calls, parsed
+		if parsed && len(funcs) == 0 && len(defs) > 0 {
+			// Some languages (for example Lua) are not covered by the
+			// brace-based coverage extractor. Fall back to tree-sitter
+			// definitions so the call graph still has nodes to attach to.
+			funcs = tsFuncInfos(defs)
+		}
 		used := map[string]int{}
 		if idx.byFile[filePath] == nil {
 			idx.byFile[filePath] = map[string][]string{}
@@ -146,8 +160,141 @@ func (b *builder) buildJS() {
 
 	b.jsResolveImports()
 	for _, filePath := range idx.paths {
-		b.jsResolveCalls(idx.files[filePath])
+		file := idx.files[filePath]
+		if !file.tsParsed {
+			b.jsResolveCallsFallback(file)
+			continue
+		}
+		b.jsResolveCalls(file, file.tsDefs, file.tsCalls)
 	}
+}
+
+func tsFuncInfos(defs []tsDef) []analysis.FuncInfo {
+	out := make([]analysis.FuncInfo, 0, len(defs))
+	seen := map[string]bool{}
+	for _, def := range defs {
+		key := def.Name + "\x00" + strconv.Itoa(def.StartLine)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, analysis.FuncInfo{
+			Name: def.Name, Kind: "function",
+			StartLine: def.StartLine, EndLine: def.EndLine,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].StartLine < out[j].StartLine })
+	return out
+}
+
+// jsResolveCalls attributes tree-sitter calls to the enclosing function and
+// resolves their names.
+func (b *builder) jsResolveCalls(file *jsFile, defs []tsDef, calls []tsCall) {
+	if len(file.funcs) == 0 || len(calls) == 0 {
+		return
+	}
+	ranges := b.matchTSDefs(file, defs)
+	for _, call := range calls {
+		callerID := ""
+		var best *tsDef
+		for i := range ranges {
+			def := &ranges[i]
+			if call.StartByte >= def.StartByte && call.StartByte < def.EndByte {
+				if best == nil || (def.EndByte-def.StartByte) < (best.EndByte-best.StartByte) {
+					best = def
+				}
+			}
+		}
+		if best != nil {
+			callerID = best.ID
+		} else {
+			callerID = enclosingFuncID(file, call.Line)
+		}
+		if callerID == "" {
+			continue
+		}
+		var targets []Target
+		var confidence string
+		if file.lang == "TypeScript" || file.lang == "JavaScript" {
+			targets, _, confidence = b.resolveJSCall(file, call.Receiver, call.Name)
+		} else {
+			targets, confidence = b.resolveGenericCall(file, call.Receiver, call.Name)
+		}
+		if len(targets) == 0 {
+			continue
+		}
+		b.sites[file.path] = append(b.sites[file.path], Site{
+			Path: file.path, Line: call.Line, Col: call.Col, EndCol: call.EndCol,
+			Token: call.Token, Kind: "call", Confidence: confidence, Targets: targets,
+		})
+		for _, target := range targets {
+			key := callerID + "\x00" + target.ID + "\x00" + file.path + "\x00" + strconv.Itoa(call.Line)
+			if b.seenEdge[key] {
+				continue
+			}
+			b.seenEdge[key] = true
+			b.edges = append(b.edges, Edge{
+				CallerID: callerID, CalleeID: target.ID,
+				Path: file.path, Line: call.Line, Confidence: confidence,
+			})
+		}
+	}
+}
+
+func (b *builder) matchTSDefs(file *jsFile, defs []tsDef) []tsDef {
+	byKey := make(map[string]string, len(file.funcs))
+	for _, fn := range file.funcs {
+		byKey[fn.Name+"\x00"+strconv.Itoa(fn.StartLine)] = fn.ID
+	}
+	out := make([]tsDef, 0, len(defs))
+	for _, def := range defs {
+		id := byKey[def.Name+"\x00"+strconv.Itoa(def.StartLine)]
+		if id == "" {
+			for delta := 1; delta <= 2 && id == ""; delta++ {
+				id = byKey[def.Name+"\x00"+strconv.Itoa(def.StartLine-delta)]
+				if id == "" {
+					id = byKey[def.Name+"\x00"+strconv.Itoa(def.StartLine+delta)]
+				}
+			}
+		}
+		if id == "" {
+			continue
+		}
+		def.ID = id
+		out = append(out, def)
+	}
+	return out
+}
+
+func enclosingFuncID(file *jsFile, line int) string {
+	for _, fn := range file.funcs {
+		if line >= fn.StartLine && line <= fn.EndLine {
+			return fn.ID
+		}
+	}
+	return ""
+}
+
+// resolveGenericCall resolves calls for languages without import-aware
+// analysis: self/this prefers the same file, then repo-wide unique names.
+func (b *builder) resolveGenericCall(file *jsFile, receiver, name string) ([]Target, string) {
+	byFile := b.js.byFile[file.path]
+	pick := func(ids []string, confidence string) ([]Target, string) {
+		return b.targets(ids), confidenceFor(ids, confidence)
+	}
+	switch receiver {
+	case "this", "self", "$this":
+		if ids := byFile[name]; len(ids) > 0 {
+			return pick(ids, "receiver")
+		}
+	}
+	if ids := byFile[name]; len(ids) > 0 {
+		return pick(ids, "local")
+	}
+	if ids := b.js.byName[name]; len(ids) > 0 {
+		return pick(ids, "name")
+	}
+	return nil, ""
 }
 
 func (b *builder) jsResolveImports() {
@@ -163,7 +310,7 @@ func (b *builder) jsResolveImports() {
 	}
 }
 
-func (b *builder) jsResolveCalls(file *jsFile) {
+func (b *builder) jsResolveCallsFallback(file *jsFile) {
 	if len(file.funcs) == 0 {
 		return
 	}

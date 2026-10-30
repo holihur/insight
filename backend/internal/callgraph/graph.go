@@ -138,6 +138,7 @@ type builder struct {
 	declIDs   map[string]string
 	modules   map[string]moduleInfo
 	js        *jsIndex
+	fileCount int
 	truncated bool
 	maxFiles  int
 }
@@ -186,7 +187,6 @@ func Build(commit, root string, ignore []string, maxFiles int) (*Graph, error) {
 }
 
 func (b *builder) collect(ig interface{ Ignored(string) bool }) error {
-	count := 0
 	return filepath.WalkDir(b.root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
@@ -205,12 +205,14 @@ func (b *builder) collect(ig interface{ Ignored(string) bool }) error {
 		if ig.Ignored(rel) {
 			return nil
 		}
-		isGo := strings.HasSuffix(rel, ".go")
-		isJS := isJSFile(rel)
-		if !isGo && !isJS {
+		if strings.HasSuffix(rel, ".go") {
+			return b.collectGoFile(p, rel, d, ig)
+		}
+		lang := analysis.LanguageFor(rel)
+		if lang == "" || !tsSupported(rel, lang) {
 			return nil
 		}
-		if count >= b.maxFiles {
+		if b.fileCount >= b.maxFiles {
 			b.truncated = true
 			return filepath.SkipAll
 		}
@@ -222,84 +224,96 @@ func (b *builder) collect(ig interface{ Ignored(string) bool }) error {
 		if readErr != nil {
 			return nil
 		}
-		if isJS {
-			b.js.addFile(rel, content)
-			count++
-			return nil
-		}
-		file, parseErr := parser.ParseFile(b.fset, rel, content, parser.SkipObjectResolution)
-		if parseErr != nil || file.Name == nil {
-			return nil
-		}
-		dir := strings.TrimSuffix(path.Dir(rel), ".")
-		fi := &fileInfo{
-			path:    rel,
-			dir:     dir,
-			pkg:     file.Name.Name,
-			content: content,
-			imports: map[string]string{},
-		}
-		for _, spec := range file.Imports {
-			if spec.Path == nil {
-				continue
-			}
-			importPath := strings.Trim(spec.Path.Value, `"`)
-			alias := ""
-			if spec.Name != nil {
-				alias = spec.Name.Name
-			} else {
-				alias = path.Base(importPath)
-			}
-			if alias == "_" || alias == "." || alias == "" {
-				continue
-			}
-			fi.imports[alias] = importPath
-		}
-		b.files[rel] = fi
-		count++
-
-		if b.types[dir] == nil {
-			b.types[dir] = map[string]bool{}
-		}
-		for _, decl := range file.Decls {
-			gen, ok := decl.(*ast.GenDecl)
-			if !ok || gen.Tok != token.TYPE {
-				continue
-			}
-			for _, spec := range gen.Specs {
-				ts, ok := spec.(*ast.TypeSpec)
-				if !ok {
-					continue
-				}
-				b.types[dir][ts.Name.Name] = true
-				structType, ok := ts.Type.(*ast.StructType)
-				if !ok {
-					continue
-				}
-				qualified := dir + "::" + ts.Name.Name
-				if b.fields[qualified] == nil {
-					b.fields[qualified] = map[string]string{}
-				}
-				for _, field := range structType.Fields.List {
-					typ := b.qualifyType(fi, field.Type)
-					if typ == "" {
-						continue
-					}
-					if len(field.Names) == 0 {
-						b.fields[qualified][qualifyBare(typ)] = typ
-						continue
-					}
-					for _, name := range field.Names {
-						b.fields[qualified][name.Name] = typ
-					}
-				}
-			}
-		}
-		b.collectDecls(fi, file)
+		b.js.addFile(rel, lang, content)
+		b.fileCount++
 		return nil
 	})
 }
 
+func (b *builder) collectGoFile(p, rel string, d fs.DirEntry, ig interface{ Ignored(string) bool }) error {
+	if b.fileCount >= b.maxFiles {
+		b.truncated = true
+		return filepath.SkipAll
+	}
+	info, statErr := d.Info()
+	if statErr != nil || info.Size() > 2*1024*1024 {
+		return nil
+	}
+	content, readErr := os.ReadFile(p)
+	if readErr != nil {
+		return nil
+	}
+	file, parseErr := parser.ParseFile(b.fset, rel, content, parser.SkipObjectResolution)
+	if parseErr != nil || file.Name == nil {
+		return nil
+	}
+	dir := strings.TrimSuffix(path.Dir(rel), ".")
+	fi := &fileInfo{
+		path:    rel,
+		dir:     dir,
+		pkg:     file.Name.Name,
+		content: content,
+		imports: map[string]string{},
+	}
+	for _, spec := range file.Imports {
+		if spec.Path == nil {
+			continue
+		}
+		importPath := strings.Trim(spec.Path.Value, `"`)
+		alias := ""
+		if spec.Name != nil {
+			alias = spec.Name.Name
+		} else {
+			alias = path.Base(importPath)
+		}
+		if alias == "_" || alias == "." || alias == "" {
+			continue
+		}
+		fi.imports[alias] = importPath
+	}
+	b.files[rel] = fi
+	b.fileCount++
+
+	if b.types[dir] == nil {
+		b.types[dir] = map[string]bool{}
+	}
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.TYPE {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			ts, ok := spec.(*ast.TypeSpec)
+			if !ok {
+				continue
+			}
+			b.types[dir][ts.Name.Name] = true
+			structType, ok := ts.Type.(*ast.StructType)
+			if !ok {
+				continue
+			}
+			qualified := dir + "::" + ts.Name.Name
+			if b.fields[qualified] == nil {
+				b.fields[qualified] = map[string]string{}
+			}
+			for _, field := range structType.Fields.List {
+				typ := b.qualifyType(fi, field.Type)
+				if typ == "" {
+					continue
+				}
+				if len(field.Names) == 0 {
+					b.fields[qualified][qualifyBare(typ)] = typ
+					continue
+				}
+				for _, name := range field.Names {
+					b.fields[qualified][name.Name] = typ
+				}
+			}
+		}
+	}
+	b.collectDecls(fi, file)
+	return nil
+}
 func (b *builder) collectDecls(fi *fileInfo, file *ast.File) {
 	used := map[string]int{}
 	for _, decl := range file.Decls {
