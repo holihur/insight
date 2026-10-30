@@ -44,10 +44,26 @@ export function RepoCard({
 
   const remove = async () => {
     if (!window.confirm(t("card.deleteConfirm", { repo: `${repo.owner}/${repo.name}` }))) return
+    const snapshot = { ...repo }
     try {
       await api.deleteRepo(repo.id)
-      toast.success(t("card.deleted"))
       onDeleted?.(repo.id)
+      toast.success(t("card.deleted"), {
+        description: `${snapshot.owner}/${snapshot.name}`,
+        duration: 6000,
+        action: {
+          label: "撤销",
+          onClick: async () => {
+            try {
+              await api.createRepo(snapshot.url || snapshot.webUrl)
+              toast.success("已撤销删除", { description: `${snapshot.owner}/${snapshot.name} 正在重新分析` })
+              onChanged?.()
+            } catch (e) {
+              toast.error(e instanceof Error ? e.message : "撤销失败")
+            }
+          },
+        },
+      })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("card.deleteError"))
     }

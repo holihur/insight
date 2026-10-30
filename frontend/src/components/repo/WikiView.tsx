@@ -22,11 +22,13 @@ export function WikiView({
   page,
   onNavigate,
   onRetry,
+  onOpenFile,
 }: {
   repo: Repo
   page: Page | null
   onNavigate: (slug: string) => void
   onRetry: () => void
+  onOpenFile?: (path: string, lines?: [number, number]) => void
 }) {
   const { t, locale } = useI18n()
   const pages = repo.wiki?.pages ?? []
@@ -144,7 +146,7 @@ export function WikiView({
           <Skeleton className="h-40 w-full rounded-xl" />
         </div>
       ) : (
-        <Markdown content={stripLeadingHeading(page.content)} />
+        <Markdown content={stripLeadingHeading(page.content)} onFileOpen={onOpenFile} />
       )}
 
       {(prev || next) && (

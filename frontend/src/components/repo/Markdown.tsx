@@ -1,8 +1,8 @@
-import { Children, isValidElement, useRef, type ReactNode } from "react"
+import { Children, isValidElement, useRef, type ReactNode, Fragment, createElement } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import rehypeHighlight from "rehype-highlight"
-import { Check, Copy } from "lucide-react"
+import { Check, Copy, FileCode2 } from "lucide-react"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { Mermaid } from "@/components/repo/Mermaid"
@@ -45,7 +45,84 @@ function CodeFrame({ children, language }: { children: ReactNode; language?: str
   )
 }
 
-export function Markdown({ content, className }: { content: string; className?: string }) {
+const FILE_RE =
+  /\b((?:[a-zA-Z0-9_\-.]+\/)+[a-zA-Z0-9_\-.]+\.[a-zA-Z0-9]{1,8})(?::(\d+)(?:-(\d+))?)?\b/g
+
+function FileChip({
+  path,
+  lineStart,
+  lineEnd,
+  onClick,
+}: {
+  path: string
+  lineStart?: number
+  lineEnd?: number
+  onClick?: (path: string, lines?: [number, number]) => void
+}) {
+  const label = lineStart ? `${path}:${lineStart}${lineEnd ? `-${lineEnd}` : ""}` : path
+  if (!onClick) {
+    return (
+      <code className="rounded bg-muted px-1 py-0.5 font-mono text-[0.82em]">{label}</code>
+    )
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => onClick(path, lineStart ? [lineStart, lineEnd ?? lineStart] : undefined)}
+      title={`在代码视图打开 ${label}`}
+      className="inline-flex items-center gap-1 rounded-sm border border-primary/25 bg-primary/8 px-1.5 py-0.5 font-mono text-[0.8em] text-primary transition-colors hover:bg-primary/15"
+    >
+      <FileCode2 className="size-3" />
+      {label}
+    </button>
+  )
+}
+
+export function linkifyText(text: string, onFileOpen?: (path: string, lines?: [number, number]) => void): ReactNode[] {
+  const parts: ReactNode[] = []
+  let last = 0
+  let m: RegExpExecArray | null
+  FILE_RE.lastIndex = 0
+  while ((m = FILE_RE.exec(text)) !== null) {
+    const [full, path, s, e] = m
+    const idx = m.index
+    if (idx > last) parts.push(text.slice(last, idx))
+    parts.push(
+      <FileChip
+        key={`${path}-${s}-${e}-${idx}`}
+        path={path}
+        lineStart={s ? Number(s) : undefined}
+        lineEnd={e ? Number(e) : undefined}
+        onClick={onFileOpen}
+      />,
+    )
+    last = idx + full.length
+  }
+  if (last < text.length) parts.push(text.slice(last))
+  return parts.length ? parts : [text]
+}
+
+function Linkified({ children, onFileOpen }: { children: ReactNode; onFileOpen?: (p: string, l?: [number, number]) => void }) {
+  const arr = Children.toArray(children)
+  return (
+    <>
+      {arr.map((c, i) => {
+        if (typeof c === "string") return <Fragment key={i}>{linkifyText(c, onFileOpen)}</Fragment>
+        return <Fragment key={i}>{c}</Fragment>
+      })}
+    </>
+  )
+}
+
+export function Markdown({
+  content,
+  className,
+  onFileOpen,
+}: {
+  content: string
+  className?: string
+  onFileOpen?: (path: string, lines?: [number, number]) => void
+}) {
   return (
     <div className={cn("markdown prose prose-neutral dark:prose-invert max-w-none", className)}>
       <ReactMarkdown
@@ -64,7 +141,67 @@ export function Markdown({ content, className }: { content: string; className?: 
             }
             return <CodeFrame>{children}</CodeFrame>
           },
+          // inline code: if it looks like a file path, make it clickable
+          code(props) {
+            const { children, className: cls, ...rest } = props as { children?: ReactNode; className?: string }
+            const txt = String(children ?? "")
+            const isInline = !cls
+            if (isInline && FILE_RE.test(txt)) {
+              FILE_RE.lastIndex = 0
+              const m = FILE_RE.exec(txt)
+              if (m && m[0] === txt) {
+                const [, path, s, e] = m
+                return createElement("span", rest, createElement(FileChip as never, { path, lineStart: s ? Number(s) : undefined, lineEnd: e ? Number(e) : undefined, onClick: onFileOpen } as never))
+              }
+              FILE_RE.lastIndex = 0
+            }
+            return createElement("code", { className: cls, ...rest }, children)
+          },
+          p({ children, ...props }) {
+            return (
+              <p {...props}>
+                <Linkified onFileOpen={onFileOpen}>{children}</Linkified>
+              </p>
+            )
+          },
+          li({ children, ...props }) {
+            return (
+              <li {...props}>
+                <Linkified onFileOpen={onFileOpen}>{children}</Linkified>
+              </li>
+            )
+          },
+          td({ children, ...props }) {
+            return (
+              <td {...props}>
+                <Linkified onFileOpen={onFileOpen}>{children}</Linkified>
+              </td>
+            )
+          },
+          blockquote({ children, ...props }) {
+            return (
+              <blockquote {...props}>
+                <Linkified onFileOpen={onFileOpen}>{children}</Linkified>
+              </blockquote>
+            )
+          },
           a({ href, children, ...props }) {
+            // internal file: protocol
+            if (href?.startsWith("file:")) {
+              const raw = href.slice(5)
+              const [p, linePart] = raw.split(":")
+              const lines = linePart ? linePart.split("-").map(Number) : undefined
+              return (
+                <button
+                  type="button"
+                  onClick={() => onFileOpen?.(p, lines as never)}
+                  className="inline-flex items-center gap-1 rounded-sm border border-primary/20 bg-primary/5 px-1 py-0.5 font-mono text-[0.85em] text-primary hover:bg-primary/10"
+                >
+                  <FileCode2 className="size-3" />
+                  {children}
+                </button>
+              )
+            }
             const external = href?.startsWith("http")
             return (
               <a

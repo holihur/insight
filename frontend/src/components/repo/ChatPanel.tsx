@@ -4,14 +4,18 @@ import {
   BarChart3,
   Check,
   ChevronDown,
+  FileCode2,
   FileText,
   FolderTree,
   Loader2,
+  Maximize2,
   MessageSquare,
+  PanelRight,
   RotateCcw,
   Search,
   Square,
   Wrench,
+  Copy,
   X,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -90,7 +94,7 @@ function ToolChip({ part }: { part: Extract<ChatPart, { type: "tool" }> }) {
   )
 }
 
-function AssistantMessage({ message }: { message: ChatMessage }) {
+function AssistantMessage({ message, onOpenFile }: { message: ChatMessage; onOpenFile?: (path: string, lines?: [number, number]) => void }) {
   const { t } = useI18n()
   const textParts = message.parts.filter((part) => part.type === "text") as Array<{
     type: "text"
@@ -122,7 +126,7 @@ function AssistantMessage({ message }: { message: ChatMessage }) {
               index === 0 ? "" : "border-t border-border/40 pt-2",
             )}
           >
-            <Markdown content={part.text} className="markdown-chat" />
+            <Markdown content={part.text} className="markdown-chat" onFileOpen={onOpenFile} />
           </div>
         ))}
         {message.streaming && !hasText && (
@@ -159,6 +163,10 @@ export function ChatPanel({
   hideHeader = false,
   inDialog = false,
   onClose,
+  context,
+  dockMode,
+  onToggleDock,
+  onOpenFile,
 }: {
   repo: Repo
   messages: ChatMessage[]
@@ -170,12 +178,21 @@ export function ChatPanel({
   hideHeader?: boolean
   inDialog?: boolean
   onClose?: () => void
+  context?: { label: string; detail: string; path: string | null; lines: [number, number] | null } | null
+  dockMode?: "floating" | "docked"
+  onToggleDock?: () => void
+  onOpenFile?: (path: string, lines?: [number, number]) => void
 }) {
   const { t } = useI18n()
   const [value, setValue] = useState("")
+  const [includeContext, setIncludeContext] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const demo = repo.demo || repo.wiki?.provider === "local"
+
+  useEffect(() => {
+    setIncludeContext(true)
+  }, [context?.detail])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end", behavior: "smooth" })
@@ -191,8 +208,19 @@ export function ChatPanel({
   const submit = () => {
     const text = value.trim()
     if (!text || streaming) return
-    onSend(text)
+    let out = text
+    if (includeContext && context?.path) {
+      const lineSuffix = context.lines ? `:${context.lines[0]}-${context.lines[1]}` : ""
+      out = `[@${context.path}${lineSuffix}] ${text}`
+    } else if (includeContext && context && !context.path) {
+      out = `[Wiki:${context.detail}] ${text}`
+    }
+    onSend(out)
     setValue("")
+  }
+  const copyLast = async (msg: ChatMessage) => {
+    const txt = msg.parts.filter((p) => p.type === "text").map((p) => (p.type === "text" ? p.text : "")).join("")
+    try { await navigator.clipboard.writeText(txt) } catch { /* ignore */ }
   }
 
   return (
@@ -212,6 +240,11 @@ export function ChatPanel({
             {t(demo ? "chat.local" : "chat.grounded")}
           </Badge>
           <div className="ml-auto flex items-center gap-0.5">
+            {onToggleDock && (
+              <Button variant="ghost" size="icon-sm" className="text-muted-foreground" onClick={onToggleDock} aria-label={dockMode === "docked" ? "浮动" : "侧边固定"} title={dockMode === "docked" ? "切换为浮动" : "固定到侧边"}>
+                {dockMode === "docked" ? <Maximize2 className="size-3.5" /> : <PanelRight className="size-3.5" />}
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon-sm"
@@ -250,12 +283,27 @@ export function ChatPanel({
                 </p>
               </div>
             </div>
+            {context && (
+              <div className="mb-3 flex items-center gap-1.5 rounded-sm border border-primary/20 bg-primary/5 px-2.5 py-1.5 text-[11px]">
+                <FileCode2 className="size-3 text-primary" />
+                <span className="min-w-0 flex-1 truncate font-mono text-primary">{context.detail}</span>
+                <label className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                  <input type="checkbox" checked={includeContext} onChange={(e) => setIncludeContext(e.target.checked)} className="size-3 rounded" /> 关联
+                </label>
+                <span className="text-[10px] text-muted-foreground/60">上下文</span>
+              </div>
+            )}
             <div className="space-y-1.5">
               {suggestionKeys.map((key) => (
                 <button
                   key={key}
                   type="button"
-                  onClick={() => onSend(t(key))}
+                  onClick={() => {
+                    const base = t(key)
+                    let out = base
+                    if (includeContext && context?.path) out = `[@${context.path}] ${base}`
+                    onSend(out)
+                  }}
                   className="flex w-full items-start gap-2 rounded-sm border border-border/60 bg-background/30 px-3 py-2.5 text-left text-[12px] leading-snug text-muted-foreground transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-foreground"
                 >
                   <ArrowUp className="mt-0.5 size-3 shrink-0 -rotate-45 text-primary/70" />
@@ -273,7 +321,7 @@ export function ChatPanel({
           <div className="space-y-5 pb-2">
             {messages.map((message) =>
               message.role === "user" ? (
-                <div key={message.id} className="flex justify-end">
+                <div key={message.id} className="flex justify-end group/msg">
                   <div className="max-w-[88%] whitespace-pre-wrap rounded-sm rounded-br-none bg-primary px-3.5 py-2.5 text-[13px] leading-relaxed text-primary-foreground shadow-sm">
                     {message.parts
                       .filter((part) => part.type === "text")
@@ -282,7 +330,14 @@ export function ChatPanel({
                   </div>
                 </div>
               ) : (
-                <AssistantMessage key={message.id} message={message} />
+                <div className="group/msg">
+                  <AssistantMessage message={message} onOpenFile={onOpenFile} />
+                  {!message.streaming && (
+                    <div className="ml-9 mt-1 flex gap-1 opacity-0 transition-opacity group-hover/msg:opacity-100">
+                      <button type="button" onClick={() => void copyLast(message)} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted"><Copy className="size-3" /> 复制</button>
+                    </div>
+                  )}
+                </div>
               ),
             )}
             <div ref={bottomRef} />
@@ -290,6 +345,11 @@ export function ChatPanel({
         )}
       </div>
 
+      {context && includeContext && context.path && (
+        <div className="mx-3 mb-1 flex items-center gap-1.5 text-[10px] text-primary">
+          <FileCode2 className="size-3" /> 关联上下文: <span className="font-mono truncate">{context.detail}</span>
+        </div>
+      )}
       <div className="shrink-0 border-t border-border/60 p-3">
         <div className="rounded-sm border border-border/70 bg-background/60 p-1.5 shadow-sm transition-colors focus-within:border-primary/40">
           <textarea
@@ -303,7 +363,7 @@ export function ChatPanel({
               }
             }}
             rows={1}
-            placeholder={t("chat.placeholder")}
+            placeholder={includeContext && context?.path ? `基于 ${context.path.split("/").pop()} 提问…` : t("chat.placeholder")}
             className="max-h-32 min-h-[38px] w-full resize-none bg-transparent px-2 py-2 text-[13px] leading-relaxed outline-none placeholder:text-muted-foreground/60"
           />
           <div className="flex items-center justify-between px-1 pb-0.5">

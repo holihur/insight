@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useParams, useSearchParams } from "react-router-dom"
-import { ArrowLeft, GripHorizontal, Loader2, MessageSquare, RefreshCw } from "lucide-react"
+import { ArrowLeft, GripHorizontal, Loader2, MessageSquare, PanelRight, Maximize2, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 import { RepoHeader } from "@/components/repo/RepoHeader"
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher"
@@ -10,6 +10,7 @@ import { WikiView } from "@/components/repo/WikiView"
 import { CodeViewer } from "@/components/repo/CodeViewer"
 import { DirectoryView } from "@/components/repo/DirectoryView"
 import { ChatPanel } from "@/components/repo/ChatPanel"
+import { CommandPalette } from "@/components/repo/CommandPalette"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -28,8 +29,25 @@ import type { IndexData, TreeNode } from "@/lib/types"
 import { useI18n } from "@/i18n"
 
 const CHAT_POSITION_KEY = "code-insight-chat-position"
-
+const CHAT_DOCK_KEY = "code-insight-chat-dock"
+type ChatDockMode = "floating" | "docked"
 type ChatPosition = { x: number; y: number }
+
+function readChatDock(): ChatDockMode {
+  try {
+    const raw = window.localStorage.getItem(CHAT_DOCK_KEY)
+    if (raw === "docked" || raw === "floating") return raw
+  } catch { /* ignore */ }
+  return "floating"
+}
+function parseLines(raw: string | null): [number, number] | null {
+  if (!raw) return null
+  const parts = raw.split("-").map((v) => Number(v.trim()))
+  if (parts.length === 1 && Number.isFinite(parts[0]) && parts[0] > 0) return [parts[0], parts[0]]
+  if (parts.length === 2 && parts.every((n) => Number.isFinite(n) && n > 0))
+    return [Math.min(parts[0], parts[1]), Math.max(parts[0], parts[1])]
+  return null
+}
 
 function readChatPosition(): ChatPosition | null {
   try {
@@ -62,6 +80,8 @@ export function RepoPage() {
   const [indexError, setIndexError] = useState<string | null>(null)
   const [navOpen, setNavOpen] = useState(false)
   const [chatPos, setChatPos] = useState<ChatPosition | null>(readChatPosition)
+  const [chatDock, setChatDock] = useState<ChatDockMode>(() => readChatDock())
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const chatPanelRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{
     startX: number
@@ -77,6 +97,7 @@ export function RepoPage() {
   const activeFile = searchParams.get("path")
   const dirParam = searchParams.get("dir")
   const activeDir = activeFile ? null : dirParam === null ? null : dirParam === "." ? "" : dirParam
+  const highlightLines = useMemo(() => parseLines(searchParams.get("lines")), [searchParams])
   const view: RepoView = searchParams.get("view") === "code" || activeFile !== null || activeDir !== null ? "code" : "wiki"
   const chatOpen = searchParams.get("ask") === "1"
   const page = useMemo(
@@ -84,6 +105,13 @@ export function RepoPage() {
     [pages, requestedSlug],
   )
   const activeSlug = page?.slug ?? requestedSlug
+  // context for chat pill (P0 #41) - after page defined
+  const contextLabel = useMemo(() => {
+    if (activeFile) return { label: activeFile.split("/").pop() ?? activeFile, detail: activeFile + (highlightLines ? `:${highlightLines[0]}-${highlightLines[1]}` : ""), path: activeFile, lines: highlightLines }
+    if (activeDir !== null && activeDir !== undefined) return { label: (activeDir || repo?.name || "根目录"), detail: activeDir || ".", path: null, lines: null as [number, number] | null }
+    if (view === "wiki" && page) return { label: page.title, detail: page.slug, path: null as string | null, lines: null as [number, number] | null }
+    return null
+  }, [activeFile, activeDir, highlightLines, view, page, repo])
 
   const updateParams = useCallback(
     (patch: Record<string, string | null>) => {
@@ -149,16 +177,17 @@ export function RepoPage() {
   }, [regenerate, refresh, repo])
 
   const handleSelectFile = useCallback(
-    (path: string) => {
-      updateParams({ view: "code", path, dir: null })
+    (path: string, lines?: [number, number] | null) => {
+      updateParams({ view: "code", path, dir: null, lines: lines ? `${lines[0]}-${lines[1]}` : null })
       setNavOpen(false)
     },
     [updateParams],
   )
+  const handleSelectFileWithLines = useCallback((path: string, lines?: [number, number]) => handleSelectFile(path, lines ?? null), [handleSelectFile])
 
   const handleSelectDir = useCallback(
     (path: string) => {
-      updateParams({ view: "code", dir: path === "" ? "." : path, path: null })
+      updateParams({ view: "code", dir: path === "" ? "." : path, path: null, lines: null })
       setNavOpen(false)
     },
     [updateParams],
@@ -166,7 +195,7 @@ export function RepoPage() {
 
   const handleSelectSlug = useCallback(
     (slug: string) => {
-      updateParams({ view: "wiki", page: slug, path: null, dir: null })
+      updateParams({ view: "wiki", page: slug, path: null, dir: null, lines: null })
       setNavOpen(false)
     },
     [updateParams],
@@ -183,6 +212,20 @@ export function RepoPage() {
 
   const openChat = useCallback(() => updateParams({ ask: "1" }), [updateParams])
   const closeChat = useCallback(() => updateParams({ ask: null }), [updateParams])
+  const toggleDock = useCallback(() => {
+    setChatDock((prev) => {
+      const next = prev === "floating" ? "docked" : "floating"
+      try { window.localStorage.setItem(CHAT_DOCK_KEY, next) } catch { /* ignore */ }
+      return next
+    })
+  }, [])
+  const handleAskSelection = useCallback((code: string, path: string, lines: [number, number]) => {
+    // open chat and send contextual prompt (#41 & #6)
+    updateParams({ ask: "1", view: "code", path, lines: `${lines[0]}-${lines[1]}` })
+    const prompt = `请解释这段代码 (${path}:${lines[0]}-${lines[1]})\n\n\u0060\u0060\u0060\n${code.slice(0, 2000)}\n\u0060\u0060\u0060`
+    // slightly delay to ensure chat mounted
+    setTimeout(() => void chat.send(prompt), 150)
+  }, [chat, updateParams])
 
   const startChatDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return
@@ -228,6 +271,18 @@ export function RepoPage() {
   const resetChatPosition = useCallback(() => {
     setChatPos(null)
     window.localStorage.removeItem(CHAT_POSITION_KEY)
+  }, [])
+
+  // Cmd+K command palette
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault()
+        setPaletteOpen((v) => !v)
+      }
+    }
+    window.addEventListener("keydown", handler)
+    return () => window.removeEventListener("keydown", handler)
   }, [])
 
   useEffect(() => {
@@ -310,6 +365,7 @@ export function RepoPage() {
               page={page}
               onNavigate={handleSelectSlug}
               onRetry={() => void handleRetry()}
+              onOpenFile={handleSelectFileWithLines}
             />
           ) : indexError ? (
             <div className="m-6 rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 text-sm text-rose-500">
@@ -330,11 +386,27 @@ export function RepoPage() {
               }
             />
           ) : (
-            <CodeViewer repo={repo} path={activeFile} />
+            <CodeViewer repo={repo} path={activeFile} highlightLines={highlightLines} onAskSelection={handleAskSelection} onOpenDir={handleSelectDir} />
           )}
         </main>
-
-
+        {chatOpen && chatDock === "docked" && (
+          <aside className="hidden w-[380px] shrink-0 border-l border-border/60 lg:flex lg:flex-col">
+            <ChatPanel
+              repo={repo}
+              messages={chat.messages}
+              onSend={(text) => void chat.send(text)}
+              onStop={chat.stop}
+              onReset={chat.reset}
+              streaming={chat.streaming}
+              className="min-h-0 flex-1"
+              onClose={closeChat}
+              context={contextLabel}
+              dockMode={chatDock}
+              onToggleDock={toggleDock}
+              onOpenFile={handleSelectFileWithLines}
+            />
+          </aside>
+        )}
       </div>
 
       <footer className="flex h-9 shrink-0 items-center justify-end gap-1 border-t border-border/60 bg-background/60 px-3">
@@ -352,7 +424,9 @@ export function RepoPage() {
         </DialogContent>
       </Dialog>
 
-      {chatOpen && (
+      <CommandPalette pages={pages} index={index} open={paletteOpen} onOpenChange={setPaletteOpen} onSelectFile={handleSelectFile} onSelectSlug={handleSelectSlug} />
+
+      {chatOpen && chatDock === "floating" && (
         <div
           ref={chatPanelRef}
           style={
@@ -372,9 +446,20 @@ export function RepoPage() {
             onPointerCancel={endChatDrag}
             onDoubleClick={resetChatPosition}
             title={t("chat.dragHint")}
-            className="flex h-6 shrink-0 cursor-grab touch-none items-center justify-center border-b border-border/50 bg-muted/25 active:cursor-grabbing"
+            className="flex h-6 shrink-0 cursor-grab touch-none items-center justify-between border-b border-border/50 bg-muted/25 px-2 active:cursor-grabbing"
           >
-            <GripHorizontal className="size-3.5 text-muted-foreground/50" />
+            <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground/70">Drag · 双击复位</span>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={toggleDock}
+                title="固定到侧边栏"
+                className="grid size-5 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <PanelRight className="size-3" />
+              </button>
+              <GripHorizontal className="size-3.5 text-muted-foreground/50" />
+            </div>
           </div>
           <ChatPanel
             repo={repo}
@@ -385,6 +470,10 @@ export function RepoPage() {
             streaming={chat.streaming}
             className="min-h-0 flex-1"
             onClose={closeChat}
+            context={contextLabel}
+            dockMode={chatDock}
+            onToggleDock={toggleDock}
+            onOpenFile={handleSelectFileWithLines}
           />
         </div>
       )}
@@ -398,6 +487,34 @@ export function RepoPage() {
           <MessageSquare className="size-3.5" />
           {t("repo.ask")}
         </button>
+      )}
+      {/* mobile docked fallback: if docked but on mobile, show floating fallback */}
+      {chatOpen && chatDock === "docked" && (
+        <div className="lg:hidden">
+          <div
+            ref={chatPanelRef}
+            className="fixed inset-x-3 bottom-11 z-50 flex h-[min(640px,58dvh)] flex-col overflow-hidden rounded-sm border border-border bg-background/95 shadow-2xl backdrop-blur-md"
+          >
+            <div className="flex h-7 shrink-0 items-center justify-between border-b border-border/50 bg-muted/25 px-2">
+              <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground">Ask</span>
+              <button type="button" onClick={toggleDock} className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-muted"><Maximize2 className="size-3" /></button>
+            </div>
+            <ChatPanel
+              repo={repo}
+              messages={chat.messages}
+              onSend={(text) => void chat.send(text)}
+              onStop={chat.stop}
+              onReset={chat.reset}
+              streaming={chat.streaming}
+              className="min-h-0 flex-1"
+              onClose={closeChat}
+              context={contextLabel}
+              dockMode={chatDock}
+              onToggleDock={toggleDock}
+              onOpenFile={handleSelectFileWithLines}
+            />
+          </div>
+        </div>
       )}
 
       {chatOpen && (
