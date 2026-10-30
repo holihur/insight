@@ -4,6 +4,8 @@ import {
   ChevronRight,
   FileCode2,
   FileText,
+  Folder,
+  FolderOpen,
   GitBranch,
   Layers,
   Loader2,
@@ -11,11 +13,12 @@ import {
   Rocket,
   Search,
 } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn, formatNumber, languageColor } from "@/lib/utils"
 import type { IndexData, Page, Repo, TreeNode } from "@/lib/types"
+import { useI18n } from "@/i18n"
 
 export type RepoView = "wiki" | "code"
 
@@ -38,6 +41,8 @@ export function WikiSidebar({
   index,
   activeFile,
   onSelectFile,
+  activeDir,
+  onSelectDir,
   className,
 }: {
   repo: Repo
@@ -49,10 +54,27 @@ export function WikiSidebar({
   index: IndexData | null
   activeFile: string | null
   onSelectFile: (path: string) => void
+  activeDir: string | null
+  onSelectDir: (path: string) => void
   className?: string
 }) {
+  const { t } = useI18n()
   const [query, setQuery] = useState("")
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    if (!activeDir) return
+    setExpanded((prev) => {
+      const next = { ...prev }
+      const parts = activeDir.split("/")
+      let path = ""
+      for (const part of parts) {
+        path = path ? `${path}/${part}` : part
+        next[path] = true
+      }
+      return next
+    })
+  }, [activeDir])
 
   const languages = (repo.stats.languages ?? []).slice(0, 5)
   const matches = useMemo(() => {
@@ -82,7 +104,7 @@ export function WikiSidebar({
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
-            <BookOpen className="size-3.5" /> Wiki
+            <BookOpen className="size-3.5" /> {t("sidebar.wiki")}
           </button>
           <button
             type="button"
@@ -94,7 +116,7 @@ export function WikiSidebar({
                 : "text-muted-foreground hover:text-foreground",
             )}
           >
-            <FileCode2 className="size-3.5" /> Code
+            <FileCode2 className="size-3.5" /> {t("sidebar.code")}
           </button>
         </div>
       </div>
@@ -102,7 +124,7 @@ export function WikiSidebar({
       {view === "wiki" ? (
         <>
           <div className="px-4 pb-2 pt-4 font-mono text-[9px] font-medium uppercase tracking-[0.22em] text-muted-foreground/80">
-            Documentation
+            {t("sidebar.documentation")}
           </div>
           <ScrollArea className="min-h-0 flex-1">
             <div className="space-y-0.5 px-2 pb-4">
@@ -154,7 +176,7 @@ export function WikiSidebar({
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Find a file…"
+                placeholder={t("sidebar.findFile")}
                 className="h-8 w-full rounded-sm border border-border/70 bg-background/60 pl-8 pr-2 text-xs outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-primary/40"
               />
             </div>
@@ -171,7 +193,7 @@ export function WikiSidebar({
               {index && matches && (
                 <div className="space-y-0.5 px-2">
                   {matches.length === 0 && (
-                    <p className="px-2 py-3 text-xs text-muted-foreground">No files match.</p>
+                    <p className="px-2 py-3 text-xs text-muted-foreground">{t("sidebar.noMatch")}</p>
                   )}
                   {matches.map((path) => (
                     <button
@@ -192,11 +214,13 @@ export function WikiSidebar({
               {index && !matches && (
                 <Tree
                   node={index.tree}
-                  depth={0}
+                  depth={-1}
                   expanded={expanded}
                   setExpanded={setExpanded}
                   activeFile={activeFile}
                   onSelectFile={onSelectFile}
+                  activeDir={activeDir}
+                  onSelectDir={onSelectDir}
                 />
               )}
             </div>
@@ -212,7 +236,8 @@ export function WikiSidebar({
               {repo.stats.files === 1 ? "file" : "files"}
             </span>
             <span>
-              {formatNumber(repo.stats.lines)} {repo.stats.lines === 1 ? "line" : "lines"}
+              {formatNumber(repo.stats.lines)}{" "}
+              {t(repo.stats.lines === 1 ? "common.line" : "common.lines")}
             </span>
           </div>
           <div className="mt-2 flex flex-wrap gap-1">
@@ -253,6 +278,8 @@ function Tree({
   setExpanded,
   activeFile,
   onSelectFile,
+  activeDir,
+  onSelectDir,
 }: {
   node: TreeNode
   depth: number
@@ -260,6 +287,8 @@ function Tree({
   setExpanded: React.Dispatch<React.SetStateAction<Record<string, boolean>>>
   activeFile: string | null
   onSelectFile: (path: string) => void
+  activeDir: string | null
+  onSelectDir: (path: string) => void
 }) {
   if (node.type === "file") {
     return (
@@ -281,36 +310,66 @@ function Tree({
     )
   }
 
-  const isRoot = depth === 0
+  const isRoot = node.path === ""
   const isOpen = isRoot || expanded[node.path] === true
 
   return (
     <div>
       {!isRoot && (
-        <button
-          type="button"
-          onClick={() =>
-            setExpanded((prev) => ({ ...prev, [node.path]: !prev[node.path] }))
-          }
-          className="flex w-full items-center gap-1 rounded-md py-1 pr-2 text-left text-[11px] text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground"
-          style={{ paddingLeft: `${depth * 12 + 4}px` }}
+        <div
+          className={cn(
+            "flex items-center rounded-sm border-l-2",
+            activeDir === node.path
+              ? "border-primary bg-primary/8"
+              : "border-transparent",
+          )}
+          style={{ paddingLeft: `${depth * 12 + 2}px` }}
         >
-          <ChevronRight
-            className={cn("size-3 shrink-0 transition-transform", isOpen && "rotate-90")}
-          />
-          <span className="truncate font-medium">{node.name}</span>
-        </button>
+          <button
+            type="button"
+            onClick={() =>
+              setExpanded((prev) => ({ ...prev, [node.path]: !prev[node.path] }))
+            }
+            className="grid size-6 shrink-0 place-items-center text-muted-foreground/70 transition-colors hover:text-foreground"
+            aria-label={isOpen ? "Collapse directory" : "Expand directory"}
+          >
+            <ChevronRight
+              className={cn("size-3 transition-transform", isOpen && "rotate-90")}
+            />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setExpanded((prev) => ({ ...prev, [node.path]: true }))
+              onSelectDir(node.path)
+            }}
+            className={cn(
+              "flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-2 text-left text-[11px] transition-colors hover:text-foreground",
+              activeDir === node.path ? "text-primary" : "text-muted-foreground",
+            )}
+            title={node.path}
+          >
+            {isOpen ? (
+              <FolderOpen className="size-3 shrink-0 opacity-70" />
+            ) : (
+              <Folder className="size-3 shrink-0 opacity-60" />
+            )}
+            <span className="truncate font-medium">{node.name}</span>
+          </button>
+        </div>
       )}
       {isOpen &&
         node.children?.map((child) => (
           <Tree
             key={child.path}
             node={child}
-            depth={isRoot ? 0 : depth + 1}
+            depth={depth + 1}
             expanded={expanded}
             setExpanded={setExpanded}
             activeFile={activeFile}
             onSelectFile={onSelectFile}
+            activeDir={activeDir}
+            onSelectDir={onSelectDir}
           />
         ))}
     </div>

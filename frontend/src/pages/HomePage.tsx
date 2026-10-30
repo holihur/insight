@@ -4,7 +4,6 @@ import {
   ArrowUpRight,
   CircleAlert,
   GitBranch,
-  Loader2,
   MessageSquare,
   Radar,
   ShieldCheck,
@@ -19,36 +18,21 @@ import { MazeIcon } from "@/components/icons/MazeIcon"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useAppTheme } from "@/hooks/ThemeProvider"
 import { api } from "@/lib/api"
-import type { Health, Repo } from "@/lib/types"
+import type { Repo } from "@/lib/types"
+import { useI18n } from "@/i18n"
 
 const features = [
-  {
-    icon: GitBranch,
-    title: "Survey",
-    body: "A shallow clone is walked once to map languages, modules, entry points and the project's manifests.",
-    step: "I",
-  },
-  {
-    icon: Radar,
-    title: "Send the host",
-    body: "An analysis agent plans the wiki, then reads real files and searches symbols with filesystem tools.",
-    step: "II",
-  },
-  {
-    icon: MessageSquare,
-    title: "Follow the maze",
-    body: "Every page is grounded in the code. Ask follow-up questions and watch the agent inspect files live.",
-    step: "III",
-  },
+  { icon: GitBranch, key: "feature1", step: "I" },
+  { icon: Radar, key: "feature2", step: "II" },
+  { icon: MessageSquare, key: "feature3", step: "III" },
 ]
 
 export function HomePage() {
   const { theme, toggle } = useAppTheme()
+  const { t } = useI18n()
   const [repos, setRepos] = useState<Repo[] | null>(null)
-  const [health, setHealth] = useState<Health | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -63,14 +47,6 @@ export function HomePage() {
         setError(err instanceof Error ? err.message : "Could not reach the API")
         setRepos([])
       })
-    api
-      .health()
-      .then((data) => {
-        if (alive) setHealth(data)
-      })
-      .catch(() => {
-        if (alive) setHealth(null)
-      })
     return () => {
       alive = false
     }
@@ -78,7 +54,7 @@ export function HomePage() {
 
   return (
     <div className="min-h-dvh">
-      <SiteHeader theme={theme} onToggle={toggle} />
+      <SiteHeader />
 
       <main>
         <section className="relative overflow-hidden border-b border-border/60">
@@ -92,25 +68,22 @@ export function HomePage() {
               <div className="mb-5 flex flex-wrap items-center gap-2">
                 <Badge variant="outline" className="gap-1.5 border-primary/30 bg-primary/5 py-1 font-mono text-[9px] uppercase tracking-[0.18em] text-primary">
                   <span className="size-1.5 rounded-full bg-primary" />
-                  The Maze · Host Analysis
+                  {t("home.badge")}
                 </Badge>
-                <HealthPill health={health} />
               </div>
 
               <h1 className="font-serif text-[2.9rem] font-medium leading-[0.98] tracking-[-0.02em] sm:text-[4.4rem]">
-                Every codebase
+                {t("home.titleA")}
                 <br />
-                is a <span className="italic text-gradient">maze.</span>
+                {t("home.titleB")} <span className="italic text-gradient">{t("home.titleC")}</span>
               </h1>
               <p className="mt-6 max-w-xl text-[15px] leading-relaxed text-muted-foreground sm:text-base">
-                Step inside. Code Insight sends an AI host through the repository — mapping every
-                corridor, reading the source, and writing a grounded wiki that leads you to the
-                center.
+                {t("home.subtitle")}
               </p>
 
               <div className="mt-8 max-w-xl">
                 <div className="mb-2 flex items-center gap-3">
-                  <span className="section-label">Intake / 01</span>
+                  <span className="section-label">{t("home.intake")}</span>
                   <span className="gold-hairline flex-1" />
                 </div>
                 <div id="analyze" className="scroll-mt-24">
@@ -120,13 +93,13 @@ export function HomePage() {
 
               <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
                 <span className="inline-flex items-center gap-1.5">
-                  <ShieldCheck className="size-3.5 text-primary" /> Read-only checkout
+                  <ShieldCheck className="size-3.5 text-primary" /> {t("home.trust1")}
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <Zap className="size-3.5 text-primary" /> Live agent transmissions
+                  <Zap className="size-3.5 text-primary" /> {t("home.trust2")}
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <GitBranch className="size-3.5 text-primary" /> Any public repo
+                  <GitBranch className="size-3.5 text-primary" /> {t("home.trust3")}
                 </span>
               </div>
             </div>
@@ -137,20 +110,19 @@ export function HomePage() {
 
         <section id="how-it-works" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-20 sm:px-6">
           <div className="mx-auto mb-10 max-w-2xl text-center">
-            <p className="section-label">The process</p>
+            <p className="section-label">{t("home.process.label")}</p>
             <h2 className="mt-3 font-serif text-3xl font-medium tracking-tight sm:text-4xl">
-              From the gate to the center
+              {t("home.process.title")}
             </h2>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              Deterministic indexing draws the map. Then the host does what a new engineer would do:
-              walk the corridors and read what is written on the walls.
+              {t("home.process.body")}
             </p>
           </div>
 
           <div className="grid gap-4 md:grid-cols-3">
             {features.map((feature) => (
               <div
-                key={feature.title}
+                key={feature.key}
                 className="frame-corners group relative overflow-hidden rounded-sm border border-border/70 bg-card/40 p-6 transition-all hover:border-primary/25 hover:bg-card/70"
               >
                 <span className="absolute right-5 top-4 font-serif text-2xl italic text-primary/30">
@@ -159,9 +131,11 @@ export function HomePage() {
                 <div className="mb-5 grid size-10 place-items-center rounded-sm border border-primary/25 bg-primary/5 text-primary">
                   <feature.icon className="size-[18px]" />
                 </div>
-                <h3 className="font-serif text-xl font-medium tracking-tight">{feature.title}</h3>
+                <h3 className="font-serif text-xl font-medium tracking-tight">
+                  {t(`${feature.key}.title`)}
+                </h3>
                 <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
-                  {feature.body}
+                  {t(`${feature.key}.body`)}
                 </p>
               </div>
             ))}
@@ -172,19 +146,21 @@ export function HomePage() {
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
             <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
               <div>
-                <p className="section-label mb-2">The archive</p>
-                <h2 className="font-serif text-2xl font-medium tracking-tight">Recent analyses</h2>
+                <p className="section-label mb-2">{t("archive.label")}</p>
+                <h2 className="font-serif text-2xl font-medium tracking-tight">
+                  {t("archive.title")}
+                </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {repos === null
-                    ? "Loading your repositories…"
+                    ? t("archive.loading")
                     : repos.length === 0
-                      ? "Your analyzed repositories will appear here."
-                      : `${repos.length} repositor${repos.length === 1 ? "y" : "ies"} on this machine.`}
+                      ? t("archive.empty")
+                      : t("archive.count", { count: repos.length })}
                 </p>
               </div>
               <Button variant="outline" size="sm" asChild>
                 <a href="#analyze">
-                  New analysis <ArrowUpRight />
+                  {t("archive.new")} <ArrowUpRight />
                 </a>
               </Button>
             </div>
@@ -193,9 +169,9 @@ export function HomePage() {
               <div className="mb-4 flex items-start gap-2 rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 text-xs text-rose-500">
                 <CircleAlert className="mt-0.5 size-4 shrink-0" />
                 <div>
-                  <p className="font-medium">The API is not reachable.</p>
+                  <p className="font-medium">{t("archive.apiError")}</p>
                   <p className="mt-0.5 text-rose-500/80">
-                    {error}. Start the stack with <code className="font-mono">mise run dev</code>.
+                    {t("archive.apiHint", { error })}
                   </p>
                 </div>
               </div>
@@ -212,14 +188,13 @@ export function HomePage() {
                 <div className="mx-auto mb-4 grid size-12 place-items-center rounded-2xl border border-border/70 bg-card">
                   <GitBranch className="size-5 text-muted-foreground/60" />
                 </div>
-                <p className="font-medium">No repositories yet</p>
+                <p className="font-medium">{t("archive.emptyTitle")}</p>
                 <p className="mx-auto mt-1 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                  Paste a GitHub URL above to generate your first code wiki. Public repositories work
-                  out of the box.
+                  {t("archive.emptyBody")}
                 </p>
                 <Button variant="outline" size="sm" className="mt-4" asChild>
                   <a href="#analyze">
-                    Analyze a repo <ArrowRight />
+                    {t("archive.emptyAction")} <ArrowRight />
                   </a>
                 </Button>
               </div>
@@ -247,63 +222,26 @@ export function HomePage() {
               <div className="mx-auto mb-4 grid size-12 place-items-center rounded-full border border-primary/25 bg-primary/5">
                 <MazeIcon className="size-7 text-primary" />
               </div>
-              <p className="section-label mb-2">The center</p>
+              <p className="section-label mb-2">{t("cta.label")}</p>
               <h2 className="font-serif text-3xl font-medium tracking-tight sm:text-4xl">
-                The maze is waiting.
+                {t("cta.title")}
               </h2>
               <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
-                Point Code Insight at a repository. You will have an overview, an architecture map
-                and a getting-started guide before the piano stops playing.
+                {t("cta.body")}
               </p>
               <Button
                 size="lg"
                 className="mt-7"
                 onClick={() => document.getElementById("analyze")?.scrollIntoView({ behavior: "smooth" })}
               >
-                Analyze a repository <ArrowRight />
+                {t("cta.action")} <ArrowRight />
               </Button>
             </div>
           </div>
         </section>
       </main>
 
-      <SiteFooter />
+      <SiteFooter theme={theme} onToggle={toggle} />
     </div>
-  )
-}
-
-function HealthPill({ health }: { health: Health | null }) {
-  if (!health) {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card/50 px-2.5 py-1 text-[11px] text-muted-foreground">
-        <Loader2 className="size-3 animate-spin" /> Connecting to API
-      </span>
-    )
-  }
-  if (health.demo) {
-    return (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span className="inline-flex cursor-help items-center gap-1.5 rounded-full border border-amber-500/25 bg-amber-500/10 px-2.5 py-1 text-[11px] text-amber-600 dark:text-amber-400">
-            <span className="size-1.5 animate-pulse rounded-full bg-amber-500" />
-            Local mode
-          </span>
-        </TooltipTrigger>
-        <TooltipContent>
-          No model key detected. Add one to .env for written wikis and grounded chat.
-        </TooltipContent>
-      </Tooltip>
-    )
-  }
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="inline-flex cursor-help items-center gap-1.5 rounded-full border border-[#7f9366]/30 bg-[#7f9366]/10 px-2.5 py-1 text-[11px] text-[#4e6b3a] dark:text-[#a8bd86]">
-          <span className="size-1.5 rounded-full bg-[#8fa872]" />
-          Agent online
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>An analysis agent is connected and ready.</TooltipContent>
-    </Tooltip>
   )
 }

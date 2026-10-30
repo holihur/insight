@@ -3,9 +3,12 @@ import { Link, useParams } from "react-router-dom"
 import { ArrowLeft, Loader2, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 import { RepoHeader } from "@/components/repo/RepoHeader"
+import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher"
+import { ThemeToggle } from "@/components/layout/ThemeToggle"
 import { WikiSidebar, type RepoView } from "@/components/repo/WikiSidebar"
 import { WikiView } from "@/components/repo/WikiView"
 import { CodeViewer } from "@/components/repo/CodeViewer"
+import { DirectoryView } from "@/components/repo/DirectoryView"
 import { ChatPanel } from "@/components/repo/ChatPanel"
 import { Button } from "@/components/ui/button"
 import {
@@ -22,16 +25,19 @@ import { useChat } from "@/hooks/useChat"
 import { api } from "@/lib/api"
 import { cn, isActive } from "@/lib/utils"
 import type { IndexData, TreeNode } from "@/lib/types"
+import { useI18n } from "@/i18n"
 
 export function RepoPage() {
   const { id } = useParams<{ id: string }>()
   const { theme, toggle } = useAppTheme()
+  const { t } = useI18n()
   const { repo, error, loading, refresh, regenerate } = useRepo(id)
   const chat = useChat(id)
 
   const [view, setView] = useState<RepoView>("wiki")
   const [activeSlug, setActiveSlug] = useState("overview")
   const [activeFile, setActiveFile] = useState<string | null>(null)
+  const [activeDir, setActiveDir] = useState<string | null>(null)
   const [index, setIndex] = useState<IndexData | null>(null)
   const [indexLoading, setIndexLoading] = useState(false)
   const [indexError, setIndexError] = useState<string | null>(null)
@@ -66,21 +72,21 @@ export function RepoPage() {
   }, [view, index, indexLoading, repo])
 
   useEffect(() => {
-    if (view !== "code" || activeFile || !index) return
+    if (view !== "code" || activeFile || activeDir !== null || !index) return
     const first = index.entryFiles?.[0] ?? index.keyFiles?.[0] ?? firstFile(index.tree)
     if (first) setActiveFile(first)
-  }, [view, activeFile, index])
+  }, [view, activeFile, activeDir, index])
 
   const handleRegenerate = useCallback(async () => {
     if (!repo) return
     try {
       await regenerate()
-      toast.success("Regenerating wiki", {
-        description: "The agent is re-reading the repository.",
+      toast.success(t("card.regenerating"), {
+        description: t("repo.regeneratingDesc"),
       })
       setActiveSlug(pages[0]?.slug ?? "overview")
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not regenerate")
+      toast.error(err instanceof Error ? err.message : t("card.regenerateError"))
     }
   }, [regenerate, repo, pages])
 
@@ -88,15 +94,23 @@ export function RepoPage() {
     if (!repo) return
     try {
       await regenerate()
-      toast.success("Retrying analysis")
+      toast.success(t("repo.retrying"))
       await refresh(true)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not retry")
+      toast.error(err instanceof Error ? err.message : t("repo.retryError"))
     }
   }, [regenerate, refresh, repo])
 
   const handleSelectFile = useCallback((path: string) => {
     setActiveFile(path)
+    setActiveDir(null)
+    setView("code")
+    setNavOpen(false)
+  }, [])
+
+  const handleSelectDir = useCallback((path: string) => {
+    setActiveDir(path)
+    setActiveFile(null)
     setView("code")
     setNavOpen(false)
   }, [])
@@ -112,14 +126,14 @@ export function RepoPage() {
           <div className="mx-auto mb-4 grid size-12 place-items-center rounded-2xl border border-rose-500/20 bg-rose-500/5">
             <ArrowLeft className="size-5 text-rose-500" />
           </div>
-          <h1 className="text-lg font-semibold">Repository unavailable</h1>
+          <h1 className="text-lg font-semibold">{t("repo.unavailable")}</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">{error}</p>
           <div className="mt-5 flex justify-center gap-2">
             <Button variant="outline" asChild>
-              <Link to="/">Back home</Link>
+              <Link to="/">{t("repo.backHome")}</Link>
             </Button>
             <Button onClick={() => void refresh()}>
-              <RefreshCw /> Retry
+              <RefreshCw /> {t("gen.retry")}
             </Button>
           </div>
         </div>
@@ -147,6 +161,8 @@ export function RepoPage() {
       index={index}
       activeFile={activeFile}
       onSelectFile={handleSelectFile}
+      activeDir={activeDir}
+      onSelectDir={handleSelectDir}
     />
   )
 
@@ -154,8 +170,6 @@ export function RepoPage() {
     <div className="flex h-dvh flex-col overflow-hidden">
       <RepoHeader
         repo={repo}
-        theme={theme}
-        onToggleTheme={toggle}
         onAsk={() => setChatOpen(true)}
         onRegenerate={() => void handleRegenerate()}
         onOpenNav={() => setNavOpen(true)}
@@ -187,6 +201,14 @@ export function RepoPage() {
               <Skeleton className="h-4 w-2/3" />
               <Skeleton className="mt-6 h-[60vh] w-full rounded-xl" />
             </div>
+          ) : activeDir !== null && index ? (
+            <DirectoryView
+              repo={repo}
+              node={findNode(index.tree, activeDir) ?? index.tree}
+              onOpen={(path, kind) =>
+                kind === "dir" ? handleSelectDir(path) : handleSelectFile(path)
+              }
+            />
           ) : (
             <CodeViewer repo={repo} path={activeFile} />
           )}
@@ -204,6 +226,11 @@ export function RepoPage() {
           />
         </aside>
       </div>
+
+      <footer className="flex h-9 shrink-0 items-center justify-end gap-1 border-t border-border/60 bg-background/60 px-3">
+        <LanguageSwitcher />
+        <ThemeToggle theme={theme} onToggle={toggle} />
+      </footer>
 
       <Dialog open={navOpen} onOpenChange={setNavOpen}>
         <DialogContent className="h-[82dvh] max-w-sm gap-0 overflow-hidden p-0">
@@ -245,19 +272,28 @@ export function RepoPage() {
       {repo.status === "error" && (
         <div className="pointer-events-none fixed bottom-5 left-1/2 z-40 -translate-x-1/2">
           <div className="pointer-events-auto flex items-center gap-3 rounded-full border border-rose-500/25 bg-background/95 px-4 py-2 text-xs text-rose-500 shadow-lg backdrop-blur">
-            <span>Analysis failed</span>
+            <span>{t("gen.failed")}</span>
             <button
               type="button"
               onClick={() => void handleRetry()}
               className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 font-medium hover:bg-rose-500/20"
             >
-              <RefreshCw className="size-3" /> Retry
+              <RefreshCw className="size-3" /> {t("gen.retry")}
             </button>
           </div>
         </div>
       )}
     </div>
   )
+}
+
+function findNode(node: TreeNode, path: string): TreeNode | null {
+  if (node.path === path) return node
+  for (const child of node.children ?? []) {
+    const found = findNode(child, path)
+    if (found) return found
+  }
+  return null
 }
 
 function firstFile(node: TreeNode): string | null {
@@ -270,6 +306,7 @@ function firstFile(node: TreeNode): string | null {
 }
 
 function RepoLoading() {
+  const { t } = useI18n()
   return (
     <div className="flex h-dvh flex-col">
       <div className="flex h-14 items-center gap-3 border-b border-border/60 px-4">
@@ -296,7 +333,7 @@ function RepoLoading() {
       </div>
       <div className="pointer-events-none fixed inset-0 grid place-items-center">
         <div className="flex items-center gap-2 rounded-full border border-border bg-background/90 px-4 py-2 text-xs text-muted-foreground shadow-lg backdrop-blur">
-          <Loader2 className="size-3.5 animate-spin text-primary" /> Loading analysis…
+          <Loader2 className="size-3.5 animate-spin text-primary" /> {t("repo.loading")}
         </div>
       </div>
     </div>

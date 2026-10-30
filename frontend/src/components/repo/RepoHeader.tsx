@@ -12,27 +12,24 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
-import { ThemeToggle } from "@/components/layout/ThemeToggle"
 import { cn, isActive, statusMeta } from "@/lib/utils"
-import type { Theme } from "@/hooks/useTheme"
+import { useI18n } from "@/i18n"
 import type { Repo } from "@/lib/types"
 
 export function RepoHeader({
   repo,
-  theme,
-  onToggleTheme,
   onAsk,
   onRegenerate,
   onOpenNav,
 }: {
   repo: Repo
-  theme: Theme
-  onToggleTheme: () => void
   onAsk: () => void
   onRegenerate: () => void
   onOpenNav: () => void
 }) {
+  const { t } = useI18n()
   const meta = statusMeta[repo.status] ?? statusMeta.queued
+  const statusLabel = t(`status.${repo.status}`)
   const active = isActive(repo.status)
 
   return (
@@ -61,7 +58,7 @@ export function RepoHeader({
             <span className="truncate font-serif text-[15px] font-semibold leading-tight">{repo.name}</span>
             <Badge className={cn("hidden border sm:inline-flex", meta.tone)}>
               <span className={cn("size-1.5 rounded-full", meta.dot, active && "animate-pulse")} />
-              {meta.label}
+              {statusLabel}
             </Badge>
           </div>
           <p className="hidden truncate text-[10px] leading-tight text-muted-foreground sm:block">
@@ -83,29 +80,28 @@ export function RepoHeader({
               disabled={active}
             >
               {active ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-              <span className="hidden lg:inline">Regenerate</span>
+              <span className="hidden lg:inline">{t("repo.regenerate")}</span>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Re-run analysis and rewrite the wiki</TooltipContent>
+          <TooltipContent>{t("repo.regenerate")}</TooltipContent>
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
             <Button variant="ghost" size="icon" asChild>
-              <a href={repo.webUrl} target="_blank" rel="noreferrer" aria-label="Open on GitHub">
+              <a href={repo.webUrl} target="_blank" rel="noreferrer" aria-label={t("code.github")}>
                 <ExternalLink />
               </a>
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Open on GitHub</TooltipContent>
+          <TooltipContent>{t("code.github")}</TooltipContent>
         </Tooltip>
-        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
         <Button size="sm" onClick={onAsk} className="gap-1.5 xl:hidden">
           <MessageSquare />
-          <span className="hidden sm:inline">Ask</span>
+          <span className="hidden sm:inline">{t("repo.ask")}</span>
         </Button>
         <Button size="sm" variant="secondary" className="hidden gap-1.5 xl:inline-flex" asChild>
           <a href="#chat">
-            <Sparkles /> Ask
+            <Sparkles /> {t("repo.ask")}
           </a>
         </Button>
       </div>

@@ -19,15 +19,14 @@ import { Markdown } from "@/components/repo/Markdown"
 import { MazeIcon } from "@/components/icons/MazeIcon"
 import { cn } from "@/lib/utils"
 import type { ChatMessage, ChatPart, Repo } from "@/lib/types"
+import { useI18n } from "@/i18n"
 
-const suggestions = [
-  "Give me a high-level architecture overview.",
-  "How does a request flow through this codebase?",
-  "Where is authentication and authorization handled?",
-  "What should I read first to contribute?",
-]
+const suggestionKeys = ["chat.s1", "chat.s2", "chat.s3", "chat.s4"]
 
-function toolLabel(part: Extract<ChatPart, { type: "tool" }>): string {
+function toolLabel(
+  part: Extract<ChatPart, { type: "tool" }>,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+): string {
   const args = part.args ?? {}
   const pick = (...keys: string[]) => {
     for (const key of keys) {
@@ -38,13 +37,13 @@ function toolLabel(part: Extract<ChatPart, { type: "tool" }>): string {
   }
   switch (part.name) {
     case "read_file":
-      return `Reading ${pick("path") || "a file"}`
+      return t("chat.reading", { path: pick("path") || "…" })
     case "list_files":
-      return `Listing ${pick("dir") || "the repository"}`
+      return t("chat.listing", { dir: pick("dir") || "." })
     case "search_code":
-      return `Searching for "${pick("query")}"`
+      return t("chat.searching", { query: pick("query") })
     case "repo_stats":
-      return "Reading repository stats"
+      return t("chat.stats")
     default:
       return part.name.replaceAll("_", " ")
   }
@@ -66,13 +65,14 @@ function toolIcon(name: string) {
 }
 
 function ToolChip({ part }: { part: Extract<ChatPart, { type: "tool" }> }) {
+  const { t } = useI18n()
   const Icon = toolIcon(part.name)
   const running = part.status === "running"
   return (
     <details className="group/tool overflow-hidden rounded-sm border border-border/70 bg-background/50">
       <summary className="flex cursor-pointer list-none items-center gap-2 px-2.5 py-1.5 text-[11px] text-muted-foreground transition-colors hover:text-foreground">
         <Icon className="size-3 shrink-0" />
-        <span className="min-w-0 flex-1 truncate font-mono">{toolLabel(part)}</span>
+        <span className="min-w-0 flex-1 truncate font-mono">{toolLabel(part, t)}</span>
         {running ? (
           <Loader2 className="size-3 shrink-0 animate-spin text-primary" />
         ) : (
@@ -90,6 +90,7 @@ function ToolChip({ part }: { part: Extract<ChatPart, { type: "tool" }> }) {
 }
 
 function AssistantMessage({ message }: { message: ChatMessage }) {
+  const { t } = useI18n()
   const textParts = message.parts.filter((part) => part.type === "text") as Array<{
     type: "text"
     text: string
@@ -130,7 +131,7 @@ function AssistantMessage({ message }: { message: ChatMessage }) {
               <span className="size-1.5 animate-bounce rounded-full bg-primary [animation-delay:-0.1s]" />
               <span className="size-1.5 animate-bounce rounded-full bg-primary" />
             </span>
-            Thinking…
+            {t("chat.thinking")}
           </div>
         )}
         {message.error && (
@@ -139,7 +140,7 @@ function AssistantMessage({ message }: { message: ChatMessage }) {
           </div>
         )}
         {!message.streaming && !message.error && !hasText && toolParts.length === 0 && (
-          <p className="text-xs text-muted-foreground">No response was returned.</p>
+          <p className="text-xs text-muted-foreground">{t("chat.noResponse")}</p>
         )}
       </div>
     </div>
@@ -167,6 +168,7 @@ export function ChatPanel({
   hideHeader?: boolean
   inDialog?: boolean
 }) {
+  const { t } = useI18n()
   const [value, setValue] = useState("")
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -200,16 +202,18 @@ export function ChatPanel({
           )}
         >
           <MessageSquare className="size-3.5 text-primary" />
-          <span className="font-mono text-[10px] font-medium uppercase tracking-[0.16em]">Ask this repo</span>
+          <span className="font-mono text-[10px] font-medium uppercase tracking-[0.16em]">
+            {t("chat.title")}
+          </span>
           <Badge variant={demo ? "warning" : "secondary"} className="ml-1 font-mono text-[9px]">
-            {demo ? "local" : "grounded"}
+            {t(demo ? "chat.local" : "chat.grounded")}
           </Badge>
           <Button
             variant="ghost"
             size="icon-sm"
             className="ml-auto text-muted-foreground"
             onClick={onReset}
-            aria-label="Start a new conversation"
+            aria-label={t("chat.reset")}
           >
             <RotateCcw />
           </Button>
@@ -224,29 +228,28 @@ export function ChatPanel({
                 <MazeIcon className="size-5 text-primary" />
               </div>
               <div>
-                <p className="font-serif text-lg font-medium">Ask anything about the code</p>
+                <p className="font-serif text-lg font-medium">{t("chat.emptyTitle")}</p>
                 <p className="text-[11px] text-muted-foreground">
-                  Answers are grounded in {repo.owner}/{repo.name}
+                  {t("chat.emptyBody", { repo: `${repo.owner}/${repo.name}` })}
                 </p>
               </div>
             </div>
             <div className="space-y-1.5">
-              {suggestions.map((suggestion) => (
+              {suggestionKeys.map((key) => (
                 <button
-                  key={suggestion}
+                  key={key}
                   type="button"
-                  onClick={() => onSend(suggestion)}
+                  onClick={() => onSend(t(key))}
                   className="flex w-full items-start gap-2 rounded-sm border border-border/60 bg-background/30 px-3 py-2.5 text-left text-[12px] leading-snug text-muted-foreground transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-foreground"
                 >
                   <ArrowUp className="mt-0.5 size-3 shrink-0 -rotate-45 text-primary/70" />
-                  {suggestion}
+                  {t(key)}
                 </button>
               ))}
             </div>
             {demo && (
               <p className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/5 px-2.5 py-2 text-[10px] leading-relaxed text-amber-600 dark:text-amber-400">
-                Local mode: answers come from code search. Connect a model in{" "}
-                <code className="font-mono">.env</code> for full agent reasoning.
+                {t("chat.localNote")}
               </p>
             )}
           </div>
@@ -284,21 +287,21 @@ export function ChatPanel({
               }
             }}
             rows={1}
-            placeholder="Ask about architecture, flows, files…"
+            placeholder={t("chat.placeholder")}
             className="max-h-32 min-h-[38px] w-full resize-none bg-transparent px-2 py-2 text-[13px] leading-relaxed outline-none placeholder:text-muted-foreground/60"
           />
           <div className="flex items-center justify-between px-1 pb-0.5">
             <span className="text-[10px] text-muted-foreground/70">
-              <kbd className="rounded border border-border/70 px-1">Enter</kbd> to send ·{" "}
+              <kbd className="rounded border border-border/70 px-1">Enter</kbd> {t("chat.enter")} ·{" "}
               <kbd className="rounded border border-border/70 px-1">Shift</kbd>+
-              <kbd className="rounded border border-border/70 px-1">Enter</kbd> for a new line
+              <kbd className="rounded border border-border/70 px-1">Enter</kbd> {t("chat.shift")}
             </span>
             {streaming ? (
               <Button
                 size="icon-sm"
                 variant="secondary"
                 onClick={onStop}
-                aria-label="Stop response"
+                aria-label={t("chat.stop")}
               >
                 <Square className="size-3 fill-current" />
               </Button>
@@ -307,7 +310,7 @@ export function ChatPanel({
                 size="icon-sm"
                 onClick={submit}
                 disabled={!value.trim()}
-                aria-label="Send message"
+                aria-label={t("chat.send")}
               >
                 <ArrowUp />
               </Button>

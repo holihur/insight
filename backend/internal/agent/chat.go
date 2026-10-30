@@ -93,8 +93,10 @@ func (c *Chatter) Stream(ctx context.Context, repo *model.Repo, clientSessionID,
 		Name:        "repo_chat",
 		Model:       c.llm,
 		Description: "Answers questions about a source repository",
-		Instruction: instruction,
-		Tools:       tools,
+		InstructionProvider: func(ctx agent.ReadonlyContext) (string, error) {
+			return instruction, nil
+		},
+		Tools: tools,
 		GenerateContentConfig: &genai.GenerateContentConfig{
 			Temperature:     ptrFloat32(0.2),
 			MaxOutputTokens: int32(c.cfg.Model.MaxTokens),

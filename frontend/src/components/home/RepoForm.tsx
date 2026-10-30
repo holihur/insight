@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { api } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { useI18n } from "@/i18n"
 
 const examples = [
   "gin-gonic/gin",
@@ -27,6 +28,7 @@ function looksValid(value: string): boolean {
 }
 
 export function RepoForm({ autoFocus = false }: { autoFocus?: boolean }) {
+  const { t } = useI18n()
   const [value, setValue] = useState("")
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -37,19 +39,19 @@ export function RepoForm({ autoFocus = false }: { autoFocus?: boolean }) {
     if (busy) return
     const url = value.trim()
     if (!looksValid(url)) {
-      setError("Enter a GitHub URL or an owner/repo pair, e.g. gin-gonic/gin")
+      setError(t("form.invalid"))
       return
     }
     setBusy(true)
     setError(null)
     try {
       const repo = await api.createRepo(url)
-      toast.success("Analysis started", {
-        description: `${repo.owner}/${repo.name} is being cloned and indexed.`,
+      toast.success(t("form.started"), {
+        description: t("form.startedDesc", { repo: `${repo.owner}/${repo.name}` }),
       })
       navigate(`/repo/${repo.id}`)
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Could not start the analysis"
+      const message = err instanceof Error ? err.message : t("form.error")
       setError(message)
       toast.error(message)
     } finally {
@@ -76,14 +78,14 @@ export function RepoForm({ autoFocus = false }: { autoFocus?: boolean }) {
             autoFocus={autoFocus}
             spellCheck={false}
             autoComplete="off"
-            placeholder="https://github.com/owner/repo"
+            placeholder={t("form.placeholder")}
             aria-label="GitHub repository"
             className="h-11 w-full min-w-0 bg-transparent font-mono text-[12px] tracking-wide outline-none placeholder:text-muted-foreground/50"
           />
         </div>
         <Button type="submit" size="lg" disabled={busy} className="h-11 shrink-0 rounded-sm px-5 font-mono text-[11px] uppercase tracking-[0.12em]">
           {busy ? <Loader2 className="animate-spin" /> : null}
-          {busy ? "Starting…" : "Analyze repo"}
+          {busy ? t("home.starting") : t("home.analyze")}
           {!busy && <ArrowRight />}
         </Button>
       </form>

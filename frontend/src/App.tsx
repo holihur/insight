@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom"
 import { Toaster } from "sonner"
 import { ThemeProvider, useAppTheme } from "@/hooks/ThemeProvider"
+import { I18nProvider } from "@/i18n"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { HomePage } from "@/pages/HomePage"
 import { RepoPage } from "@/pages/RepoPage"
@@ -30,8 +31,10 @@ function AppFrame() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <AppFrame />
-    </ThemeProvider>
+    <I18nProvider>
+      <ThemeProvider>
+        <AppFrame />
+      </ThemeProvider>
+    </I18nProvider>
   )
 }

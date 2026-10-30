@@ -12,12 +12,17 @@
 - **生成 5–8 个章节的 Wiki**：概览、快速开始、架构、核心子系统、关键文件等。
 - **每个结论都来自源码**：代理使用文件树、文件读取和代码搜索工具，而不是凭空猜测。
 - **像问同事一样追问**：流式回答，展示它正在读哪个文件、搜什么关键词，并引用真实路径。
-- **直接在浏览器里读代码**：文件树、语法高亮、行号、复制和跳转 GitHub。
+- **直接在浏览器里读代码**：左侧文件树支持目录展开，右侧带行号、语法高亮、复制和跳转 GitHub。
 - **支持 Mermaid 图**：架构和调用关系可以直接渲染成图。
+- **10 种界面语言**：English、简体中文、Español、हिन्दी、العربية、Português、Русский、日本語、Français、Deutsch。语言与主题切换放在页面底部。
 
 ![仓库 Wiki 页面](docs/screenshot-repo.jpg)
 
 > 上面的仓库页面就是 **Code Insight 分析它自己的仓库** 后生成的。
+
+![源码浏览](docs/screenshot-code.jpg)
+
+源码视图使用同一棵目录树，文件内容带语法高亮。
 
 ## 快速开始
 
@@ -85,6 +90,7 @@ OPENAI_MODEL=gpt-4o-mini
    - “How does a request flow through this codebase?”
    - “Where is authentication handled?”
 5. 需要重新生成时点击 **Regenerate**；删除分析会同时删除本地克隆。
+6. 语言和主题切换在页面底部。
 
 ## 数据与隐私
 

@@ -7,6 +7,7 @@ import { Markdown } from "@/components/repo/Markdown"
 import { GeneratingState } from "@/components/repo/GeneratingState"
 import { cn, isActive, relativeTime } from "@/lib/utils"
 import type { Page, Repo } from "@/lib/types"
+import { useI18n } from "@/i18n"
 
 function stripLeadingHeading(content: string): string {
   const trimmed = content.trimStart()
@@ -27,6 +28,7 @@ export function WikiView({
   onNavigate: (slug: string) => void
   onRetry: () => void
 }) {
+  const { t, locale } = useI18n()
   const pages = repo.wiki?.pages ?? []
   const ready = pages.filter((p) => p.status === "ready" && p.content)
   const noContentYet = ready.length === 0
@@ -40,10 +42,8 @@ export function WikiView({
       <div className="grid h-full place-items-center p-8 text-center">
         <div>
           <FileText className="mx-auto mb-3 size-8 text-muted-foreground/50" />
-          <p className="font-medium">No page selected</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Pick a section from the sidebar to start reading.
-          </p>
+          <p className="font-medium">{t("wiki.noPage")}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t("wiki.noPageBody")}</p>
         </div>
       </div>
     )
@@ -59,9 +59,9 @@ export function WikiView({
   const copyLink = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href)
-      toast.success("Link copied")
+      toast.success(t("wiki.copied"))
     } catch {
-      toast.error("Could not copy the link")
+      toast.error(t("wiki.copyError"))
     }
   }
 
@@ -69,17 +69,17 @@ export function WikiView({
     <article className="mx-auto w-full max-w-3xl px-5 py-8 sm:px-8 sm:py-10">
       <div className="mb-5 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.12em] text-muted-foreground">
         <span className="inline-flex items-center gap-1 font-medium">
-          <FileText className="size-3" /> Wiki
+          <FileText className="size-3" /> {t("wiki.breadcrumb")}
         </span>
         <span className="text-border">/</span>
         <span className="truncate">{page.title}</span>
         <div className="ml-auto flex items-center gap-1.5">
           {repo.wiki?.generatedAt && (
             <span className="inline-flex items-center gap-1">
-              <Clock3 className="size-3" /> {relativeTime(repo.wiki.generatedAt)}
+              <Clock3 className="size-3" /> {relativeTime(repo.wiki.generatedAt, locale)}
             </span>
           )}
-          <Button variant="ghost" size="icon-sm" onClick={copyLink} aria-label="Copy page link">
+          <Button variant="ghost" size="icon-sm" onClick={copyLink} aria-label={t("wiki.copyLink")}>
             <Copy />
           </Button>
         </div>
@@ -94,10 +94,10 @@ export function WikiView({
         )}
         <div className="mt-3 flex flex-wrap items-center gap-1.5">
           <Badge variant="secondary" className="gap-1 font-mono text-[10px]">
-            <Sparkles className="size-2.5" /> agent written
+            <Sparkles className="size-2.5" /> {t("wiki.grounded")}
           </Badge>
           <Badge variant="outline" className="text-[10px]">
-            {pages.length} sections
+            {t("common.sections", { count: pages.length })}
           </Badge>
           {repo.commit && (
             <Badge variant="outline" className="font-mono text-[10px]">
@@ -120,10 +120,7 @@ export function WikiView({
           <div className="leading-relaxed">
             {localOnly ? (
               <>
-                <span className="font-medium">Local wiki.</span> This documentation was assembled
-                from static analysis. Add a model key to{" "}
-                <code className="rounded bg-background/60 px-1 py-0.5 font-mono text-[10px]">.env</code>{" "}
-                and regenerate for a fully agent-written wiki.
+                <span className="font-medium">{t("wiki.quickTitle")}</span> {t("wiki.quickBody")}
               </>
             ) : (
               <>
@@ -139,7 +136,7 @@ export function WikiView({
         <div className="space-y-4">
           <div className="flex items-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary">
             <Sparkles className="size-3.5 animate-pulse" />
-            The agent is reading the code and writing this section…
+            {t("wiki.writing")}
           </div>
           <Skeleton className="h-3.5 w-full" />
           <Skeleton className="h-3.5 w-[94%]" />
@@ -159,7 +156,7 @@ export function WikiView({
               className="group rounded-sm border border-border/70 p-3.5 text-left transition-colors hover:border-primary/30 hover:bg-primary/5"
             >
               <span className="flex items-center gap-1 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground">
-                <ArrowLeft className="size-3" /> Previous
+                <ArrowLeft className="size-3" /> {t("wiki.prev")}
               </span>
               <span className="mt-1 block truncate text-sm font-medium group-hover:text-primary">
                 {prev.title}
@@ -175,7 +172,7 @@ export function WikiView({
               className="group rounded-sm border border-border/70 p-3.5 text-right transition-colors hover:border-primary/30 hover:bg-primary/5"
             >
               <span className="flex items-center justify-end gap-1 font-mono text-[9px] uppercase tracking-[0.16em] text-muted-foreground">
-                Next <ArrowRight className="size-3" />
+                {t("wiki.next")} <ArrowRight className="size-3" />
               </span>
               <span className="mt-1 block truncate text-sm font-medium group-hover:text-primary">
                 {next.title}

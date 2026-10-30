@@ -7,7 +7,7 @@ import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { Mermaid } from "@/components/repo/Mermaid"
 
-function CodeFrame({ children }: { children: ReactNode }) {
+function CodeFrame({ children, language }: { children: ReactNode; language?: string }) {
   const ref = useRef<HTMLPreElement>(null)
   const [copied, setCopied] = useState(false)
 
@@ -24,6 +24,11 @@ function CodeFrame({ children }: { children: ReactNode }) {
 
   return (
     <div className="group/code relative my-4">
+      {language && language !== "text" && (
+        <span className="absolute left-2.5 top-2.5 z-10 rounded-sm border border-border/60 bg-background/80 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground backdrop-blur">
+          {language}
+        </span>
+      )}
       <button
         type="button"
         onClick={copy}
@@ -55,6 +60,7 @@ export function Markdown({ content, className }: { content: string; className?: 
               if (language === "mermaid") {
                 return <Mermaid chart={String(props.children ?? "").trim()} />
               }
+              return <CodeFrame language={language}>{children}</CodeFrame>
             }
             return <CodeFrame>{children}</CodeFrame>
           },

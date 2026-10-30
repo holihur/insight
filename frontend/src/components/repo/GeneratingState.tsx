@@ -13,12 +13,13 @@ import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 import type { Repo } from "@/lib/types"
+import { useI18n } from "@/i18n"
 
 const steps = [
-  { key: "cloning", label: "Clone repository", hint: "Shallow clone of the default branch" },
-  { key: "indexing", label: "Index source tree", hint: "Files, languages, modules and key manifests" },
-  { key: "planning", label: "Plan the wiki", hint: "The agent explores code and drafts a page plan" },
-  { key: "generating", label: "Write the pages", hint: "Grounded markdown with diagrams and citations" },
+  { key: "gen.step1", hint: "gen.step1h" },
+  { key: "gen.step2", hint: "gen.step2h" },
+  { key: "gen.step3", hint: "gen.step3h" },
+  { key: "gen.step4", hint: "gen.step4h" },
 ]
 
 const rank: Record<string, number> = {
@@ -38,6 +39,7 @@ export function GeneratingState({
   repo: Repo
   onRetry: () => void
 }) {
+  const { t } = useI18n()
   const current = rank[repo.status] ?? 0
   const failed = repo.status === "error"
 
@@ -56,12 +58,12 @@ export function GeneratingState({
         </div>
         <div>
           <h1 className="font-serif text-2xl font-medium tracking-tight">
-            {failed ? "Analysis failed" : "Building your code wiki"}
+            {failed ? t("gen.failed") : t("gen.title")}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {failed
-              ? repo.error || "Something went wrong while analyzing this repository."
-              : repo.message || "The agent is working through your repository."}
+              ? repo.error || t("gen.failedBody")
+              : repo.message || t("gen.working")}
           </p>
         </div>
       </div>
@@ -115,10 +117,10 @@ export function GeneratingState({
                         active || done ? "text-foreground" : "text-muted-foreground",
                       )}
                     >
-                      {step.label}
+                      {t(step.key)}
                     </p>
                     <p className="mt-0.5 text-[11px] leading-snug text-muted-foreground">
-                      {step.hint}
+                      {t(step.hint)}
                     </p>
                   </div>
                 </div>
@@ -131,14 +133,14 @@ export function GeneratingState({
       {failed ? (
         <div className="flex gap-2">
           <Button onClick={onRetry}>
-            <Sparkles /> Retry analysis
+            <Sparkles /> {t("gen.retry")}
           </Button>
         </div>
       ) : (
         <div className="rounded-sm border border-border/60 bg-card/30 p-6">
           <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
             <BookOpen className="size-3.5" />
-            <span className="animate-pulse">Drafting documentation…</span>
+            <span className="animate-pulse">{t("gen.drafting")}</span>
           </div>
           <Skeleton className="mb-2 h-7 w-3/5" />
           <Skeleton className="mb-6 h-4 w-4/5" />

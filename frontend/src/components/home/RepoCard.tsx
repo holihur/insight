@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Progress } from "@/components/ui/progress"
 import { api } from "@/lib/api"
+import { useI18n } from "@/i18n"
 import { MazeIcon } from "@/components/icons/MazeIcon"
 import { cn, formatNumber, initials, isActive, languageColor, relativeTime, statusMeta } from "@/lib/utils"
 import type { Repo } from "@/lib/types"
@@ -35,28 +36,30 @@ export function RepoCard({
   onChanged?: () => void
 }) {
   const navigate = useNavigate()
+  const { t, locale } = useI18n()
   const meta = statusMeta[repo.status] ?? statusMeta.queued
+  const statusLabel = t(`status.${repo.status}`)
   const active = isActive(repo.status)
   const languages = (repo.stats.languages ?? []).slice(0, 4)
 
   const remove = async () => {
-    if (!window.confirm(`Delete the analysis of ${repo.owner}/${repo.name}?`)) return
+    if (!window.confirm(t("card.deleteConfirm", { repo: `${repo.owner}/${repo.name}` }))) return
     try {
       await api.deleteRepo(repo.id)
-      toast.success("Analysis deleted")
+      toast.success(t("card.deleted"))
       onDeleted?.(repo.id)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not delete the analysis")
+      toast.error(err instanceof Error ? err.message : t("card.deleteError"))
     }
   }
 
   const regenerate = async () => {
     try {
       await api.regenerate(repo.id)
-      toast.success("Regenerating wiki")
+      toast.success(t("card.regenerating"))
       onChanged?.()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not regenerate")
+      toast.error(err instanceof Error ? err.message : t("card.regenerateError"))
     }
   }
 
@@ -90,7 +93,7 @@ export function RepoCard({
         <div className="flex shrink-0 items-center gap-1">
           <Badge className={cn("border", meta.tone)}>
             <span className={cn("size-1.5 rounded-full", meta.dot, active && "animate-pulse")} />
-            {meta.label}
+            {statusLabel}
           </Badge>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -108,17 +111,17 @@ export function RepoCard({
               onClick={(event) => event.stopPropagation()}
             >
               <DropdownMenuItem onSelect={() => navigate(`/repo/${repo.id}`)}>
-                <FileText /> Open wiki
+                <FileText /> {t("card.open")}
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => window.open(repo.webUrl, "_blank")}>
-                <ExternalLink /> View on GitHub
+                <ExternalLink /> {t("card.github")}
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={regenerate}>
-                <RefreshCw /> Regenerate
+                <RefreshCw /> {t("card.regenerate")}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem variant="destructive" onSelect={remove}>
-                <Trash2 /> Delete
+                <Trash2 /> {t("card.delete")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -126,7 +129,7 @@ export function RepoCard({
       </div>
 
       <p className="mt-3 line-clamp-2 min-h-9 text-[13px] leading-relaxed text-muted-foreground">
-        {repo.wiki?.summary || repo.message || "Waiting for analysis to begin…"}
+        {repo.wiki?.summary || repo.message || t("card.waiting")}
       </p>
 
       {active && (
@@ -138,14 +141,14 @@ export function RepoCard({
 
       {repo.status === "error" && (
         <p className="mt-3 line-clamp-2 rounded-lg border border-rose-500/20 bg-rose-500/5 px-2.5 py-2 text-[11px] text-rose-500">
-          {repo.error || "Analysis failed"}
+          {repo.error || t("card.failed")}
         </p>
       )}
 
       <div className="relative mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border/60 pt-3 font-mono text-[10px] text-muted-foreground">
         <span className="inline-flex items-center gap-1">
           <FileText className="size-3" /> {formatNumber(repo.stats.files)}{" "}
-          {repo.stats.files === 1 ? "file" : "files"}
+          {t(repo.stats.files === 1 ? "common.file" : "common.files")}
         </span>
         {repo.commit && (
           <span className="inline-flex items-center gap-1 font-mono">
@@ -153,7 +156,7 @@ export function RepoCard({
           </span>
         )}
         <span className="inline-flex items-center gap-1">
-          <Clock3 className="size-3" /> {relativeTime(repo.updatedAt)}
+          <Clock3 className="size-3" /> {relativeTime(repo.updatedAt, locale)}
         </span>
         {languages.length > 0 && (
           <span className="ml-auto flex items-center gap-1.5">

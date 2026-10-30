@@ -441,8 +441,13 @@ func (g *Generator) newTextAgent(name, instruction, repoID, root string, ref *an
 		Name:        name,
 		Model:       g.llm,
 		Description: "Code Insight wiki agent",
-		Instruction: instruction,
-		Tools:       tools,
+		// A provider bypasses ADK's {state} templating. Repository digests and
+		// prompts can contain literal braces (JSON, Go, shell), which must not
+		// be interpreted as session-state references.
+		InstructionProvider: func(ctx agent.ReadonlyContext) (string, error) {
+			return instruction, nil
+		},
+		Tools: tools,
 		GenerateContentConfig: &genai.GenerateContentConfig{
 			Temperature:     &temp,
 			MaxOutputTokens: int32(g.cfg.Model.MaxTokens),

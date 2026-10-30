@@ -11,20 +11,31 @@ export function formatNumber(n: number): string {
   return String(n)
 }
 
-export function relativeTime(value: string | number | Date): string {
+export function relativeTime(value: string | number | Date, locale = "en"): string {
   const date = typeof value === "string" ? new Date(value) : new Date(value)
   const seconds = Math.round((Date.now() - date.getTime()) / 1000)
-  if (seconds < 45) return "just now"
-  if (seconds < 90) return "1 min ago"
-  const minutes = Math.round(seconds / 60)
-  if (minutes < 60) return `${minutes} min ago`
-  const hours = Math.round(minutes / 60)
-  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`
-  const days = Math.round(hours / 24)
-  if (days < 30) return `${days} day${days === 1 ? "" : "s"} ago`
-  const months = Math.round(days / 30)
-  if (months < 12) return `${months} month${months === 1 ? "" : "s"} ago`
-  return `${Math.round(months / 12)} year${months < 18 ? "" : "s"} ago`
+  try {
+    const rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" })
+    if (seconds < 45) return rtf.format(0, "second")
+    if (seconds < 90) return rtf.format(-1, "minute")
+    const minutes = Math.round(seconds / 60)
+    if (minutes < 60) return rtf.format(-minutes, "minute")
+    const hours = Math.round(minutes / 60)
+    if (hours < 24) return rtf.format(-hours, "hour")
+    const days = Math.round(hours / 24)
+    if (days < 30) return rtf.format(-days, "day")
+    const months = Math.round(days / 30)
+    if (months < 12) return rtf.format(-months, "month")
+    return rtf.format(-Math.round(months / 12), "year")
+  } catch {
+    if (seconds < 45) return "just now"
+    const minutes = Math.max(1, Math.round(seconds / 60))
+    if (minutes < 60) return `${minutes} min ago`
+    const hours = Math.round(minutes / 60)
+    if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`
+    const days = Math.round(hours / 24)
+    return `${days} day${days === 1 ? "" : "s"} ago`
+  }
 }
 
 export function truncateMiddle(value: string, max = 42): string {

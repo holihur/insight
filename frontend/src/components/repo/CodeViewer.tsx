@@ -50,6 +50,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { api } from "@/lib/api"
 import { cn, formatNumber } from "@/lib/utils"
 import type { FileContent, Repo } from "@/lib/types"
+import { useI18n } from "@/i18n"
 
 const languages: Array<[string, unknown]> = [
   ["go", go],
@@ -144,6 +145,7 @@ export function CodeViewer({
   repo: Repo
   path: string | null
 }) {
+  const { t } = useI18n()
   const [file, setFile] = useState<FileContent | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -207,10 +209,9 @@ export function CodeViewer({
           <div className="mx-auto mb-4 grid size-14 place-items-center rounded-2xl border border-border/70 bg-card/60">
             <FileCode2 className="size-6 text-muted-foreground/60" />
           </div>
-          <h2 className="font-semibold">Browse the source</h2>
+          <h2 className="font-semibold">{t("code.browseTitle")}</h2>
           <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-            Pick a file from the explorer to read it with syntax highlighting. The agent uses the same
-            tree when answering questions.
+            {t("code.browseBody")}
           </p>
         </div>
       </div>
@@ -237,10 +238,10 @@ export function CodeViewer({
               {file.language}
             </Badge>
           )}
-          <Button variant="ghost" size="icon-sm" onClick={copy} aria-label="Copy file">
+          <Button variant="ghost" size="icon-sm" onClick={copy} aria-label={t("code.copy")}>
             {copied ? <Check className="text-emerald-500" /> : <Copy />}
           </Button>
-          <Button variant="ghost" size="icon-sm" asChild aria-label="Open on GitHub">
+          <Button variant="ghost" size="icon-sm" asChild aria-label={t("code.github")}>
             <a href={githubURL} target="_blank" rel="noreferrer">
               <ExternalLink />
             </a>
@@ -252,7 +253,7 @@ export function CodeViewer({
         {loading && (
           <div className="space-y-2 p-5">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="size-3.5 animate-spin" /> Loading {path}…
+              <Loader2 className="size-3.5 animate-spin" /> {t("code.loading", { path })}
             </div>
             {Array.from({ length: 14 }).map((_, index) => (
               <Skeleton
@@ -284,9 +285,12 @@ export function CodeViewer({
         )}
         {!loading && !error && file && lines.length > MAX_LINES && (
           <div className="border-t border-border/60 px-4 py-2 text-[11px] text-muted-foreground">
-            Showing the first {formatNumber(MAX_LINES)} of {formatNumber(file.total)} lines.{" "}
+            {t("code.showing", {
+              shown: formatNumber(MAX_LINES),
+              total: formatNumber(file.total),
+            })}{" "}
             <a href={githubURL} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-              Open the full file on GitHub
+              {t("code.openFull")}
             </a>
             .
           </div>
