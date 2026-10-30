@@ -1,0 +1,555 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  color-scheme: light;
+  --background: oklch(0.955 0.022 86);
+  --foreground: oklch(0.24 0.028 66);
+  --card: oklch(0.982 0.014 88);
+  --card-foreground: oklch(0.24 0.028 66);
+  --popover: oklch(0.985 0.012 88);
+  --popover-foreground: oklch(0.24 0.028 66);
+  --primary: oklch(0.53 0.115 72);
+  --primary-foreground: oklch(0.98 0.015 88);
+  --secondary: oklch(0.91 0.028 82);
+  --secondary-foreground: oklch(0.31 0.04 68);
+  --muted: oklch(0.92 0.022 82);
+  --muted-foreground: oklch(0.49 0.035 70);
+  --accent: oklch(0.895 0.045 78);
+  --accent-foreground: oklch(0.34 0.075 65);
+  --destructive: oklch(0.52 0.17 28);
+  --destructive-foreground: oklch(0.98 0.01 88);
+  --border: oklch(0.855 0.028 78);
+  --input: oklch(0.84 0.03 78);
+  --ring: oklch(0.58 0.12 72);
+  --success: oklch(0.5 0.09 135);
+  --warning: oklch(0.61 0.12 72);
+  --radius: 0.5rem;
+  --code-bg: oklch(0.935 0.018 82);
+  --gold: oklch(0.58 0.12 72);
+  --bone: oklch(0.24 0.028 66);
+}
+
+.dark {
+  color-scheme: dark;
+  --background: oklch(0.135 0.012 68);
+  --foreground: oklch(0.91 0.025 84);
+  --card: oklch(0.178 0.016 70);
+  --card-foreground: oklch(0.91 0.025 84);
+  --popover: oklch(0.195 0.017 70);
+  --popover-foreground: oklch(0.91 0.025 84);
+  --primary: oklch(0.77 0.125 82);
+  --primary-foreground: oklch(0.17 0.025 68);
+  --secondary: oklch(0.225 0.018 70);
+  --secondary-foreground: oklch(0.89 0.025 84);
+  --muted: oklch(0.215 0.016 70);
+  --muted-foreground: oklch(0.68 0.032 80);
+  --accent: oklch(0.255 0.032 72);
+  --accent-foreground: oklch(0.88 0.06 82);
+  --destructive: oklch(0.55 0.17 28);
+  --destructive-foreground: oklch(0.98 0.01 88);
+  --border: oklch(0.29 0.022 74);
+  --input: oklch(0.32 0.024 74);
+  --ring: oklch(0.77 0.125 82);
+  --success: oklch(0.69 0.085 132);
+  --warning: oklch(0.79 0.12 82);
+  --code-bg: oklch(0.155 0.012 70);
+  --gold: oklch(0.77 0.125 82);
+  --bone: oklch(0.91 0.025 84);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-code-bg: var(--code-bg);
+  --color-gold: var(--gold);
+  --color-bone: var(--bone);
+  --radius-sm: calc(var(--radius) - 3px);
+  --radius-md: calc(var(--radius) - 1px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 3px);
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-serif: "Cormorant Garamond", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --animate-fade-up: fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade-in: fade-in 0.35s ease-out both;
+  --animate-shimmer: shimmer 1.8s linear infinite;
+  --animate-pulse-soft: pulse-soft 2.4s ease-in-out infinite;
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+@keyframes pulse-soft {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    background-color: var(--background);
+    background-image:
+      radial-gradient(ellipse 90% 60% at 50% -20%, color-mix(in oklch, var(--primary) 9%, transparent), transparent 65%),
+      radial-gradient(ellipse 60% 50% at 100% 100%, color-mix(in oklch, #8a4b2a 7%, transparent), transparent 65%);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0.035;
+    mix-blend-mode: soft-light;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 220 220' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 220px 220px;
+  }
+  h1, h2, h3, h4, h5 {
+    font-family: var(--font-serif);
+    letter-spacing: -0.012em;
+  }
+  ::selection {
+    background: color-mix(in oklch, var(--primary) 28%, transparent);
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--muted-foreground) 30%, transparent) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: color-mix(in oklch, var(--muted-foreground) 26%, transparent);
+    border-radius: 999px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklch, var(--muted-foreground) 45%, transparent);
+  }
+}
+
+@utility bg-grid {
+  background-image:
+    linear-gradient(to right, color-mix(in oklch, var(--primary) 8%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklch, var(--primary) 8%, transparent) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+@utility bg-contour {
+  background-image:
+    repeating-radial-gradient(ellipse 75% 60% at 72% 22%, transparent 0 36px, color-mix(in oklch, var(--primary) 13%, transparent) 37px 38px, transparent 39px 74px),
+    repeating-radial-gradient(ellipse 55% 45% at 18% 82%, transparent 0 48px, color-mix(in oklch, var(--primary) 8%, transparent) 49px 50px, transparent 51px 96px);
+}
+
+@utility bg-leather {
+  background-image:
+    radial-gradient(ellipse at 50% 0%, color-mix(in oklch, var(--primary) 5%, transparent), transparent 70%),
+    linear-gradient(140deg, color-mix(in oklch, var(--foreground) 2%, transparent), transparent 40%);
+}
+
+
+
+@utility bg-dots {
+  background-image: radial-gradient(color-mix(in oklch, var(--foreground) 12%, transparent) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+@utility text-gradient {
+  background: linear-gradient(105deg, var(--foreground) 5%, var(--primary) 45%, #b87333 70%, var(--foreground) 106%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@utility gold-rule {
+  background: linear-gradient(90deg, transparent, color-mix(in oklch, var(--primary) 55%, transparent), transparent);
+  height: 1px;
+}
+
+@utility glass {
+  background: color-mix(in oklch, var(--card) 72%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+/* ── Markdown ─────────────────────────────────────────────────────────────── */
+.markdown {
+  --tw-prose-body: var(--foreground);
+  --tw-prose-headings: var(--foreground);
+  --tw-prose-lead: var(--muted-foreground);
+  --tw-prose-links: var(--primary);
+  --tw-prose-bold: var(--foreground);
+  --tw-prose-counters: var(--muted-foreground);
+  --tw-prose-bullets: color-mix(in oklch, var(--primary) 55%, transparent);
+  --tw-prose-hr: var(--border);
+  --tw-prose-quotes: var(--foreground);
+  --tw-prose-quote-borders: var(--primary);
+  --tw-prose-captions: var(--muted-foreground);
+  --tw-prose-code: var(--foreground);
+  --tw-prose-pre-code: oklch(0.91 0.025 84);
+  --tw-prose-pre-bg: oklch(0.14 0.012 70);
+  --tw-prose-th-borders: var(--border);
+  --tw-prose-td-borders: var(--border);
+  font-size: 0.9375rem;
+  line-height: 1.75;
+  max-width: none;
+}
+.markdown :where(h1, h2, h3, h4) {
+  letter-spacing: -0.02em;
+  scroll-margin-top: 90px;
+}
+.markdown h1 {
+  font-family: var(--font-serif);
+  font-size: 2.05rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+.markdown h2 {
+  font-family: var(--font-serif);
+  font-size: 1.55rem;
+  font-weight: 600;
+  margin-top: 2.2em;
+  padding-bottom: 0.35em;
+  border-bottom: 1px solid color-mix(in oklch, var(--primary) 22%, var(--border));
+}
+.markdown h3 {
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-top: 1.8em;
+}
+.markdown p {
+  color: color-mix(in oklch, var(--foreground) 88%, transparent);
+}
+.markdown a {
+  text-decoration-color: color-mix(in oklch, var(--primary) 40%, transparent);
+  text-underline-offset: 3px;
+  font-weight: 500;
+}
+.markdown a:hover {
+  text-decoration-color: var(--primary);
+}
+.markdown code {
+  font-family: var(--font-mono);
+  font-size: 0.84em;
+  background: color-mix(in oklch, var(--muted) 85%, transparent);
+  border: 1px solid color-mix(in oklch, var(--primary) 18%, var(--border));
+  padding: 0.12em 0.38em;
+  border-radius: 0.35rem;
+  font-weight: 450;
+}
+.markdown code::before,
+.markdown code::after {
+  content: none;
+}
+.markdown pre {
+  background: var(--code-bg) !important;
+  border: 1px solid color-mix(in oklch, var(--primary) 14%, var(--border));
+  border-radius: 0.5rem;
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+  font-size: 0.82rem;
+  line-height: 1.65;
+}
+.markdown pre code {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font-size: inherit;
+}
+.markdown table {
+  font-size: 0.875rem;
+  display: table;
+  width: 100%;
+}
+.markdown th {
+  background: color-mix(in oklch, var(--muted) 65%, transparent);
+  font-weight: 600;
+  text-align: left;
+}
+.markdown th,
+.markdown td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border);
+}
+.markdown tr:nth-child(even) td {
+  background: color-mix(in oklch, var(--muted) 30%, transparent);
+}
+.markdown blockquote {
+  border-left-width: 2px;
+  background: color-mix(in oklch, var(--accent) 42%, transparent);
+  padding: 0.75rem 1rem;
+  border-radius: 0 0.5rem 0.5rem 0;
+  font-style: normal;
+}
+.markdown blockquote p {
+  margin: 0;
+}
+.markdown img {
+  border-radius: 0.75rem;
+}
+.markdown ul.contains-task-list {
+  list-style: none;
+  padding-left: 0;
+}
+.markdown hr {
+  margin: 2rem 0;
+}
+.markdown .mermaid-block {
+  margin: 1.25rem 0;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: color-mix(in oklch, var(--card) 60%, transparent);
+  overflow-x: auto;
+  text-align: center;
+}
+.markdown .mermaid-block svg {
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+/* ── highlight.js tokens (westworld: gold, sage, rust) ───────────────────── */
+.hljs-comment,
+.hljs-quote {
+  color: #8c7f6c;
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-type {
+  color: #9a6b0f;
+}
+.hljs-string,
+.hljs-attr,
+.hljs-regexp,
+.hljs-template-tag {
+  color: #4e6b3a;
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-section,
+.hljs-name {
+  color: #8a4b2a;
+}
+.hljs-variable,
+.hljs-params,
+.hljs-property {
+  color: #a3542e;
+}
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet {
+  color: #94402f;
+}
+.hljs-built_in,
+.hljs-class .hljs-title {
+  color: #7a5a16;
+}
+.hljs-meta,
+.hljs-doctag {
+  color: #6f6354;
+}
+.hljs-deletion {
+  color: #9c2f2f;
+}
+.hljs-addition {
+  color: #4f6b3c;
+}
+.dark .hljs-comment,
+.dark .hljs-quote {
+  color: #7d7160;
+}
+.dark .hljs-keyword,
+.dark .hljs-selector-tag,
+.dark .hljs-literal,
+.dark .hljs-type {
+  color: #d9b45c;
+}
+.dark .hljs-string,
+.dark .hljs-attr,
+.dark .hljs-regexp,
+.dark .hljs-template-tag {
+  color: #a8bd86;
+}
+.dark .hljs-title,
+.dark .hljs-title.function_,
+.dark .hljs-section,
+.dark .hljs-name {
+  color: #e2ad72;
+}
+.dark .hljs-variable,
+.dark .hljs-params,
+.dark .hljs-property {
+  color: #d98d63;
+}
+.dark .hljs-number,
+.dark .hljs-symbol,
+.dark .hljs-bullet {
+  color: #cf7a63;
+}
+.dark .hljs-built_in,
+.dark .hljs-class .hljs-title {
+  color: #e6c47c;
+}
+.dark .hljs-meta,
+.dark .hljs-doctag {
+  color: #948674;
+}
+.dark .hljs-deletion {
+  color: #c0574f;
+}
+.dark .hljs-addition {
+  color: #93ac75;
+}
+
+/* shimmer skeleton */
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    color-mix(in oklch, var(--muted) 60%, transparent) 25%,
+    color-mix(in oklch, var(--muted) 100%, transparent) 50%,
+    color-mix(in oklch, var(--muted) 60%, transparent) 75%
+  );
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+/* Hide number input spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+
+.markdown-chat {
+  font-size: 0.8125rem;
+  line-height: 1.65;
+}
+.markdown-chat h1 {
+  font-size: 1.05rem;
+  margin-bottom: 0.5rem;
+}
+.markdown-chat h2 {
+  font-size: 0.95rem;
+  margin-top: 1.2em;
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.markdown-chat h3 {
+  font-size: 0.875rem;
+  margin-top: 1em;
+}
+.markdown-chat p {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+.markdown-chat pre {
+  font-size: 0.72rem;
+  padding: 0.75rem 0.85rem;
+  margin: 0.6rem 0;
+}
+.markdown-chat table {
+  font-size: 0.75rem;
+}
+.markdown-chat ul,
+.markdown-chat ol {
+  margin: 0.5em 0;
+  padding-left: 1.15rem;
+}
+.markdown-chat li {
+  margin: 0.2em 0;
+}
+
+
+/* ── Westworld detailing ──────────────────────────────────────────────────── */
+.frame-corners {
+  position: relative;
+}
+.frame-corners::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(var(--primary), var(--primary)) left top / 16px 1px no-repeat,
+    linear-gradient(var(--primary), var(--primary)) left top / 1px 16px no-repeat,
+    linear-gradient(var(--primary), var(--primary)) right top / 16px 1px no-repeat,
+    linear-gradient(var(--primary), var(--primary)) right top / 1px 16px no-repeat,
+    linear-gradient(var(--primary), var(--primary)) left bottom / 16px 1px no-repeat,
+    linear-gradient(var(--primary), var(--primary)) left bottom / 1px 16px no-repeat,
+    linear-gradient(var(--primary), var(--primary)) right bottom / 16px 1px no-repeat,
+    linear-gradient(var(--primary), var(--primary)) right bottom / 1px 16px no-repeat;
+  opacity: 0.38;
+}
+
+.section-label {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: color-mix(in oklch, var(--primary) 82%, var(--foreground));
+}
+
+.gold-hairline {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in oklch, var(--primary) 45%, transparent) 20%, color-mix(in oklch, var(--primary) 45%, transparent) 80%, transparent);
+}
+
+.host-watermark {
+  position: absolute;
+  right: -2rem;
+  bottom: -2rem;
+  width: 9rem;
+  height: 9rem;
+  opacity: 0.045;
+  color: var(--primary);
+  pointer-events: none;
+}
+
+.serif-display {
+  font-family: var(--font-serif);
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}

@@ -1,0 +1,19 @@
+# dependencies
+node_modules/
+# builds
+backend/web/dist/*
+!backend/web/dist/.gitkeep
+bin/
+# runtime data (cloned repos, generated wikis)
+data/
+# local env
+.env
+.env.local
+# editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.log
+
+# TypeScript incremental build cache
+*.tsbuildinfo
