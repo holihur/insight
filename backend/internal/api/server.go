@@ -66,6 +66,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/repos/{id}/coverage/review", s.reviewFunction)
 	mux.HandleFunc("GET /api/repos/{id}/calls", s.getCalls)
 	mux.HandleFunc("GET /api/repos/{id}/callsites", s.getCallSites)
+	mux.HandleFunc("POST /api/repos/{id}/resolve", s.resolveSymbols)
 	mux.HandleFunc("PUT /api/repos/{id}/ignore", s.updateIgnore)
 	mux.HandleFunc("POST /api/repos/{id}/chat", s.chatStream)
 	mux.Handle("/", s.staticHandler())
@@ -325,6 +326,32 @@ func (s *Server) getCalls(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, data)
+}
+
+func (s *Server) resolveSymbols(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, err := s.store.Get(id); err != nil {
+		writeError(w, http.StatusNotFound, "repository not found")
+		return
+	}
+	var req struct {
+		Queries []string `json:"queries"`
+	}
+	if err := decodeJSON(w, r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if len(req.Queries) > 100 {
+		req.Queries = req.Queries[:100]
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	defer cancel()
+	data, err := s.calls.Resolve(ctx, id, req.Queries)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"matches": data})
 }
 
 func (s *Server) getCallSites(w http.ResponseWriter, r *http.Request) {

@@ -217,3 +217,17 @@ export interface CallSitesResult {
   reusedFiles?: number
   truncated: boolean
 }
+
+export interface ResolveCandidate {
+  id: string
+  name: string
+  path: string
+  kind: string
+  line: number
+  confidence?: string
+}
+
+export interface ResolveMatch {
+  query: string
+  candidates: ResolveCandidate[]
+}

@@ -135,10 +135,12 @@ export function Markdown({
   content,
   className,
   onFileOpen,
+  repoId,
 }: {
   content: string
   className?: string
   onFileOpen?: (path: string, lines?: [number, number]) => void
+  repoId?: string
 }) {
   // Generated wikis often label real code fences as ```text / ```plain. That
   // stops rehype-highlight from auto-detecting, so the block renders without
@@ -160,7 +162,13 @@ export function Markdown({
               const props = child.props as { className?: string; children?: ReactNode }
               const language = /language-([\w-]+)/.exec(props.className ?? "")?.[1]
               if (language === "mermaid") {
-                return <Mermaid chart={String(props.children ?? "").trim()} />
+                return (
+                  <Mermaid
+                    chart={String(props.children ?? "").trim()}
+                    repoId={repoId}
+                    onOpenFile={onFileOpen}
+                  />
+                )
               }
               return <CodeFrame language={language}>{children}</CodeFrame>
             }

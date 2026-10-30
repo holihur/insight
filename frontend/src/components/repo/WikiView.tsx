@@ -263,7 +263,7 @@ export function WikiView({
               <Skeleton className="h-40 w-full rounded-xl" />
             </div>
           ) : (
-            <Markdown content={rawContent} onFileOpen={onOpenFile} />
+            <Markdown content={rawContent} onFileOpen={onOpenFile} repoId={repo.id} />
           )}
 
           {(prev || next) && (

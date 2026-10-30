@@ -7,6 +7,7 @@ import type {
   Health,
   IndexData,
   Repo,
+  ResolveMatch,
 } from "@/lib/types"
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "/api"
@@ -87,6 +88,12 @@ export const api = {
 
   getCalls: (id: string, functionId: string) =>
     request<CallResult>(`/repos/${id}/calls?function=${encodeURIComponent(functionId)}`),
+
+  resolve: (id: string, queries: string[]) =>
+    request<{ matches: ResolveMatch[] }>(`/repos/${id}/resolve`, {
+      method: "POST",
+      body: JSON.stringify({ queries }),
+    }),
 
   getCallSites: (id: string, path: string) =>
     request<CallSitesResult>(`/repos/${id}/callsites?path=${encodeURIComponent(path)}`),

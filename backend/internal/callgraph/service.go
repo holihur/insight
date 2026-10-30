@@ -76,6 +76,19 @@ func (s *Service) Get(_ context.Context, repoID, functionID string) (*Result, er
 	return res, nil
 }
 
+// Resolve maps diagram labels to indexed functions for a repository.
+func (s *Service) Resolve(_ context.Context, repoID string, queries []string) ([]ResolveResult, error) {
+	repo, err := s.store.Get(repoID)
+	if err != nil {
+		return nil, err
+	}
+	graph, err := s.graphFor(repo)
+	if err != nil {
+		return nil, err
+	}
+	return graph.ResolveQueries(queries), nil
+}
+
 // Sites returns clickable tokens for one file.
 func (s *Service) Sites(_ context.Context, repoID, filePath string) (*SitesResult, error) {
 	repo, err := s.store.Get(repoID)
