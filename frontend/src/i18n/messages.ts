@@ -217,7 +217,7 @@ const rows: Row[] = [
   ["callgraph.ambiguous", "multiple", "多个匹配", "múltiple", "एकाधिक", "متعدد", "múltiplo", "несколько", "複数", "multiple", "mehrere"],
   ["callgraph.method", "method", "方法", "método", "विधि", "دالة عضوية", "método", "метод", "メソッド", "méthode", "Methode"],
   ["callgraph.function", "function", "函数", "función", "फ़ंक्शन", "دالة", "função", "функция", "関数", "fonction", "Funktion"],
-  ["callgraph.indexed", "{count} Go files indexed", "已索引 {count} 个 Go 文件", "{count} archivos Go indexados", "{count} Go फ़ाइलें अनुक्रमित", "تم فهرسة {count} ملف Go", "{count} arquivos Go indexados", "Проиндексировано файлов Go: {count}", "{count} 個の Go ファイルを索引済み", "{count} fichiers Go indexés", "{count} Go-Dateien indexiert"],
+  ["callgraph.indexed", "{count} files indexed", "已索引 {count} 个文件", "{count} archivos indexados", "{count} फ़ाइलें अनुक्रमित", "تم فهرسة {count} ملف", "{count} arquivos indexados", "Проиндексировано файлов: {count}", "{count} ファイルを索引済み", "{count} fichiers indexés", "{count} Dateien indexiert"],
   ["callgraph.loading", "Loading call index…", "正在加载调用索引…", "Cargando índice de llamadas…", "कॉल इंडेक्स लोड हो रहा है…", "جارٍ تحميل فهرس الاستدعاءات…", "Carregando índice de chamadas…", "Загрузка индекса вызовов…", "呼び出し索引を読み込み中…", "Chargement de l'index des appels…", "Aufrufindex wird geladen…"],
   ["callgraph.error", "Call index unavailable", "调用索引不可用", "Índice de llamadas no disponible", "कॉल इंडेक्स उपलब्ध नहीं", "فهرس الاستدعاءات غير متاح", "Índice de chamadas indisponível", "Индекс вызовов недоступен", "呼び出し索引を利用できません", "Index des appels indisponible", "Aufrufindex nicht verfügbar"],
   ["callgraph.close", "Close", "关闭", "Cerrar", "बंद करें", "إغلاق", "Fechar", "Закрыть", "閉じる", "Fermer", "Schließen"],

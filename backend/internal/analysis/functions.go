@@ -234,31 +234,20 @@ func extractBraceLanguage(content []byte, patterns []funcPattern) []FuncInfo {
 }
 
 func findBraceEnd(lines []string, start int) int {
-	depth := 0
-	started := false
-	inBlockComment := false
-	limit := start + 8
+	limit := start + 60
 	if limit > len(lines) {
 		limit = len(lines)
 	}
-	braceLine := -1
-	for i := start; i < limit; i++ {
-		if strings.Contains(lines[i], "{") {
-			braceLine = i
-			break
-		}
-		// Expression-bodied functions without braces.
-		if strings.Contains(lines[i], "=>") || strings.HasSuffix(strings.TrimSpace(lines[i]), "=") {
-			return i + 1
-		}
-	}
-	if braceLine < 0 {
-		return 0
-	}
-	for i := braceLine; i < len(lines); i++ {
+	inString := byte(0)
+	escaped := false
+	inBlockComment := false
+	parenDepth := 0
+	bodyLine, bodyCol := -1, -1
+
+	// Locate the body brace: the first "{" outside parentheses, so object
+	// destructuring in parameters (function f({ a, b })) does not end the body.
+	for i := start; i < limit && bodyLine < 0; i++ {
 		line := lines[i]
-		inString := byte(0)
-		escaped := false
 		for j := 0; j < len(line); j++ {
 			c := line[j]
 			if inBlockComment {
@@ -291,25 +280,95 @@ func findBraceEnd(lines []string, start int) int {
 				if j+1 < len(line) && line[j+1] == '*' {
 					inBlockComment = true
 					j++
+				}
+			case '"', '\'', '`':
+				inString = c
+			case '(':
+				parenDepth++
+			case ')':
+				if parenDepth > 0 {
+					parenDepth--
+				}
+			case '{':
+				if parenDepth == 0 {
+					bodyLine, bodyCol = i, j
+					j = len(line)
+				}
+			case '=':
+				// Expression-bodied arrow at the top level of the signature:
+				// "const f = (a) => value". Arrows inside a parameter list
+				// (type annotations, default values) must not end the body.
+				if parenDepth == 0 && j+1 < len(line) && line[j+1] == '>' && !strings.Contains(line[j+2:], "{") {
+					return i + 1
+				}
+			}
+		}
+		if inString != '`' {
+			inString = 0
+		}
+		escaped = false
+	}
+	if bodyLine < 0 {
+		return 0
+	}
+
+	depth := 0
+	for i := bodyLine; i < len(lines); i++ {
+		line := lines[i]
+		startCol := 0
+		if i == bodyLine {
+			startCol = bodyCol
+		}
+		for j := startCol; j < len(line); j++ {
+			c := line[j]
+			if inBlockComment {
+				if c == '*' && j+1 < len(line) && line[j+1] == '/' {
+					inBlockComment = false
+					j++
+				}
+				continue
+			}
+			if inString != 0 {
+				if escaped {
+					escaped = false
 					continue
+				}
+				if c == '\\' {
+					escaped = true
+					continue
+				}
+				if c == inString {
+					inString = 0
+				}
+				continue
+			}
+			switch c {
+			case '/':
+				if j+1 < len(line) && line[j+1] == '/' {
+					j = len(line)
+					continue
+				}
+				if j+1 < len(line) && line[j+1] == '*' {
+					inBlockComment = true
+					j++
 				}
 			case '"', '\'', '`':
 				inString = c
 			case '{':
 				depth++
-				started = true
 			case '}':
 				depth--
-				if started && depth == 0 {
+				if depth == 0 {
 					return i + 1
 				}
 			}
 		}
+		if inString != '`' {
+			inString = 0
+		}
+		escaped = false
 	}
-	if started {
-		return len(lines)
-	}
-	return 0
+	return len(lines)
 }
 
 func hashLines(lines []string, start, end int) string {

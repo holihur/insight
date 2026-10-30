@@ -202,6 +202,7 @@ export interface CallResult {
   commit: string
   indexed: boolean
   goFiles: number
+  files: number
   truncated: boolean
 }
 
@@ -211,5 +212,6 @@ export interface CallSitesResult {
   sites: CallSite[] | null
   indexed: boolean
   goFiles: number
+  files: number
   truncated: boolean
 }

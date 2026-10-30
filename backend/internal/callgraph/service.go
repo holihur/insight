@@ -52,7 +52,7 @@ func (s *Service) Get(_ context.Context, repoID, functionID string) (*Result, er
 	res := graph.Lookup(functionID)
 	if res == nil {
 		if len(graph.Nodes) == 0 {
-			return &Result{Commit: repo.Commit, Indexed: false, GoFiles: 0, Callees: []Link{}, Callers: []Link{}, Implementations: []Target{}}, nil
+			return &Result{Commit: repo.Commit, Indexed: false, Callees: []Link{}, Callers: []Link{}, Implementations: []Target{}}, nil
 		}
 		return nil, fmt.Errorf("function not found in the call index")
 	}
@@ -75,6 +75,7 @@ func (s *Service) Sites(_ context.Context, repoID, filePath string) (*SitesResul
 		Sites:     graph.SitesFor(filePath),
 		Indexed:   len(graph.Nodes) > 0,
 		GoFiles:   graph.GoFiles,
+		Files:     graph.Files,
 		Truncated: graph.Truncated,
 	}, nil
 }

@@ -91,6 +91,7 @@ type Result struct {
 	Commit          string   `json:"commit"`
 	Indexed         bool     `json:"indexed"`
 	GoFiles         int      `json:"goFiles"`
+	Files           int      `json:"files"`
 	Truncated       bool     `json:"truncated"`
 }
 
@@ -109,6 +110,7 @@ type SitesResult struct {
 	Sites     []Site `json:"sites"`
 	Indexed   bool   `json:"indexed"`
 	GoFiles   int    `json:"goFiles"`
+	Files     int    `json:"files"`
 	Truncated bool   `json:"truncated"`
 }
 
@@ -135,6 +137,7 @@ type builder struct {
 	seenEdge  map[string]bool
 	declIDs   map[string]string
 	modules   map[string]moduleInfo
+	js        *jsIndex
 	truncated bool
 	maxFiles  int
 }
@@ -159,12 +162,14 @@ func Build(commit, root string, ignore []string, maxFiles int) (*Graph, error) {
 		seenEdge:  map[string]bool{},
 		declIDs:   map[string]string{},
 		modules:   map[string]moduleInfo{},
+		js:        newJSIndex(),
 		maxFiles:  maxFiles,
 	}
 	if err := b.collect(ig); err != nil {
 		return nil, err
 	}
 	b.resolveAll()
+	b.buildJS()
 	g := &Graph{
 		Version:   Version,
 		Commit:    commit,
@@ -172,7 +177,7 @@ func Build(commit, root string, ignore []string, maxFiles int) (*Graph, error) {
 		Edges:     b.edges,
 		Sites:     b.sites,
 		GoFiles:   len(b.files),
-		Files:     len(b.files),
+		Files:     len(b.files) + len(b.js.files),
 		Truncated: b.truncated,
 		BuiltAt:   time.Now().UTC(),
 	}
@@ -197,7 +202,12 @@ func (b *builder) collect(ig interface{ Ignored(string) bool }) error {
 			return nil
 		}
 		rel = filepath.ToSlash(rel)
-		if !strings.HasSuffix(rel, ".go") || ig.Ignored(rel) {
+		if ig.Ignored(rel) {
+			return nil
+		}
+		isGo := strings.HasSuffix(rel, ".go")
+		isJS := isJSFile(rel)
+		if !isGo && !isJS {
 			return nil
 		}
 		if count >= b.maxFiles {
@@ -210,6 +220,11 @@ func (b *builder) collect(ig interface{ Ignored(string) bool }) error {
 		}
 		content, readErr := os.ReadFile(p)
 		if readErr != nil {
+			return nil
+		}
+		if isJS {
+			b.js.addFile(rel, content)
+			count++
 			return nil
 		}
 		file, parseErr := parser.ParseFile(b.fset, rel, content, parser.SkipObjectResolution)
@@ -710,6 +725,7 @@ func (g *Graph) Lookup(functionID string) *Result {
 		Commit:    g.Commit,
 		Indexed:   true,
 		GoFiles:   g.GoFiles,
+		Files:     g.Files,
 		Truncated: g.Truncated,
 	}
 	seen := map[string]bool{}

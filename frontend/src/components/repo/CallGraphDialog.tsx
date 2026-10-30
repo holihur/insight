@@ -78,7 +78,7 @@ export function CallGraphDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[85dvh] flex-col gap-0 p-0 max-sm:bottom-0 max-sm:top-auto max-sm:max-h-[80dvh] max-sm:w-full max-sm:max-w-none max-sm:translate-y-0 max-sm:rounded-b-none sm:max-w-xl">
-        <DialogHeader className="gap-1 border-b border-border/60 px-5 py-4">
+        <DialogHeader className="gap-1 border-b border-border/60 py-4 pl-5 pr-10">
           <DialogTitle className="flex items-center gap-2 font-mono text-sm">
             {data?.function.name ?? functionId ?? t("callgraph.title")}
             {data?.function && (
@@ -101,7 +101,7 @@ export function CallGraphDialog({
                 </Badge>
                 {data.indexed && (
                   <span className="text-muted-foreground">
-                    {t("callgraph.indexed", { count: data.goFiles })}
+                    {t("callgraph.indexed", { count: data.files ?? data.goFiles })}
                   </span>
                 )}
               </>
