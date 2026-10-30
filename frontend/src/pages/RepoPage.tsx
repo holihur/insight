@@ -115,7 +115,7 @@ export function RepoPage() {
   const activeDir = activeFile ? null : dirParam === null ? null : dirParam === "." ? "" : dirParam
   const highlightLines = useMemo(() => parseLines(searchParams.get("lines")), [searchParams])
   const view: RepoView = searchParams.get("view") === "code" || activeFile !== null || activeDir !== null ? "code" : "wiki"
-  const chatOpen = searchParams.get("ask") !== "0"
+  const chatOpen = searchParams.get("ask") === "1"
   const page = useMemo(
     () => pages.find((item) => item.slug === requestedSlug) ?? pages[0] ?? null,
     [pages, requestedSlug],
@@ -227,7 +227,7 @@ export function RepoPage() {
   )
 
   const openChat = useCallback(() => updateParams({ ask: "1" }), [updateParams])
-  const closeChat = useCallback(() => updateParams({ ask: "0" }), [updateParams])
+  const closeChat = useCallback(() => updateParams({ ask: null }), [updateParams])
   const toggleDock = useCallback(() => {
     setChatDock((prev) => {
       const next = prev === "floating" ? "docked" : "floating"
