@@ -18,40 +18,6 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import hljs from "highlight.js/lib/core"
-import go from "highlight.js/lib/languages/go"
-import typescript from "highlight.js/lib/languages/typescript"
-import javascript from "highlight.js/lib/languages/javascript"
-import python from "highlight.js/lib/languages/python"
-import rust from "highlight.js/lib/languages/rust"
-import java from "highlight.js/lib/languages/java"
-import cpp from "highlight.js/lib/languages/cpp"
-import c from "highlight.js/lib/languages/c"
-import csharp from "highlight.js/lib/languages/csharp"
-import php from "highlight.js/lib/languages/php"
-import ruby from "highlight.js/lib/languages/ruby"
-import kotlin from "highlight.js/lib/languages/kotlin"
-import swift from "highlight.js/lib/languages/swift"
-import dart from "highlight.js/lib/languages/dart"
-import scala from "highlight.js/lib/languages/scala"
-import bash from "highlight.js/lib/languages/bash"
-import powershell from "highlight.js/lib/languages/powershell"
-import sql from "highlight.js/lib/languages/sql"
-import yaml from "highlight.js/lib/languages/yaml"
-import json from "highlight.js/lib/languages/json"
-import markdown from "highlight.js/lib/languages/markdown"
-import xml from "highlight.js/lib/languages/xml"
-import css from "highlight.js/lib/languages/css"
-import scss from "highlight.js/lib/languages/scss"
-import dockerfile from "highlight.js/lib/languages/dockerfile"
-import makefile from "highlight.js/lib/languages/makefile"
-import ini from "highlight.js/lib/languages/ini"
-import graphql from "highlight.js/lib/languages/graphql"
-import protobuf from "highlight.js/lib/languages/protobuf"
-import lua from "highlight.js/lib/languages/lua"
-import perl from "highlight.js/lib/languages/perl"
-import r from "highlight.js/lib/languages/r"
-import elixir from "highlight.js/lib/languages/elixir"
-import haskell from "highlight.js/lib/languages/haskell"
 
 import { Badge } from "@/components/ui/badge"
 import { CallGraphDialog } from "@/components/repo/CallGraphDialog"
@@ -74,46 +40,6 @@ import { cn, formatNumber } from "@/lib/utils"
 import type { CallSite, Coverage, CoverageFunction, FileContent, Repo } from "@/lib/types"
 import { useI18n } from "@/i18n"
 
-const languages: Array<[string, unknown]> = [
-  ["go", go],
-  ["typescript", typescript],
-  ["javascript", javascript],
-  ["python", python],
-  ["rust", rust],
-  ["java", java],
-  ["cpp", cpp],
-  ["c", c],
-  ["csharp", csharp],
-  ["php", php],
-  ["ruby", ruby],
-  ["kotlin", kotlin],
-  ["swift", swift],
-  ["dart", dart],
-  ["scala", scala],
-  ["bash", bash],
-  ["powershell", powershell],
-  ["sql", sql],
-  ["yaml", yaml],
-  ["json", json],
-  ["markdown", markdown],
-  ["xml", xml],
-  ["css", css],
-  ["scss", scss],
-  ["dockerfile", dockerfile],
-  ["makefile", makefile],
-  ["ini", ini],
-  ["graphql", graphql],
-  ["protobuf", protobuf],
-  ["lua", lua],
-  ["perl", perl],
-  ["r", r],
-  ["elixir", elixir],
-  ["haskell", haskell],
-]
-
-for (const [name, language] of languages) {
-  hljs.registerLanguage(name, language as never)
-}
 
 const languageMap: Record<string, string> = {
   Go: "go",
@@ -202,11 +128,30 @@ export function CodeViewer({
   const [callsIndexed, setCallsIndexed] = useState(false)
   const [tokenSheet, setTokenSheet] = useState<{ site: CallSite; mode: "menu" | "def" | "calls" } | null>(null)
   const [callPanel, setCallPanel] = useState<string | null>(null)
+  const [hljsReady, setHljsReady] = useState(false)
   const callSitesRequestRef = useRef(0)
   const requestRef = useRef(0)
+  const hljsRequested = useRef(false)
   const coverageRequestRef = useRef(0)
   const codeScrollRef = useRef<HTMLDivElement>(null)
   const preRef = useRef<HTMLPreElement>(null)
+
+  useEffect(() => {
+    if (hljsRequested.current || !path) return
+    hljsRequested.current = true
+    let alive = true
+    import("@/lib/hljs")
+      .then(({ ensureHljsLanguages }) => ensureHljsLanguages())
+      .then(() => {
+        if (alive) setHljsReady(true)
+      })
+      .catch(() => {
+        // Keep the escaped plain-text fallback if grammars fail to load.
+      })
+    return () => {
+      alive = false
+    }
+  }, [path])
 
   useEffect(() => {
     if (!path) {
@@ -310,6 +255,7 @@ export function CodeViewer({
   const highlighted = useMemo(() => {
     if (!file) return ""
     const code = visible.join("\n")
+    if (!hljsReady) return escapeHtml(code)
     const lang = languageMap[file.language]
     try {
       if (lang && hljs.getLanguage(lang)) {
@@ -319,7 +265,7 @@ export function CodeViewer({
     } catch {
       return escapeHtml(code)
     }
-  }, [file, visible])
+  }, [file, visible, hljsReady])
 
   const allSites = useMemo<CallSite[]>(() => {
     const known = new Set(callSites.filter((site) => site.kind === "def").map((site) => `${site.line}:${site.token}`))

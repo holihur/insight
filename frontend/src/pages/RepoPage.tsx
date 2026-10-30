@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useParams, useSearchParams } from "react-router-dom"
 import { ArrowLeft, GripHorizontal, Loader2, MessageSquare, PanelRight, Maximize2, RefreshCw, X } from "lucide-react"
 import { toast } from "sonner"
@@ -6,11 +6,20 @@ import { RepoHeader } from "@/components/repo/RepoHeader"
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher"
 import { ThemeToggle } from "@/components/layout/ThemeToggle"
 import { WikiSidebar, type RepoView } from "@/components/repo/WikiSidebar"
-import { WikiView } from "@/components/repo/WikiView"
-import { CodeViewer } from "@/components/repo/CodeViewer"
 import { DirectoryView } from "@/components/repo/DirectoryView"
-import { ChatPanel } from "@/components/repo/ChatPanel"
+import { ChatPanelHost } from "@/components/repo/ChatPanelHost"
 import { CommandPalette } from "@/components/repo/CommandPalette"
+
+const WikiView = lazy(() => import("@/components/repo/WikiView").then((m) => ({ default: m.WikiView })))
+const CodeViewer = lazy(() => import("@/components/repo/CodeViewer").then((m) => ({ default: m.CodeViewer })))
+
+function PanelFallback() {
+  return (
+    <div className="flex min-h-[40vh] items-center justify-center p-6">
+      <span className="size-6 animate-spin rounded-full border-2 border-primary/25 border-t-primary" />
+    </div>
+  )
+}
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -433,13 +442,15 @@ export function RepoPage() {
             </div>
           )}
           {view === "wiki" ? (
-            <WikiView
-              repo={repo}
-              page={page}
-              onNavigate={handleSelectSlug}
-              onRetry={() => void handleRetry()}
-              onOpenFile={handleSelectFileWithLines}
-            />
+            <Suspense fallback={<PanelFallback />}>
+              <WikiView
+                repo={repo}
+                page={page}
+                onNavigate={handleSelectSlug}
+                onRetry={() => void handleRetry()}
+                onOpenFile={handleSelectFileWithLines}
+              />
+            </Suspense>
           ) : indexError ? (
             <div className="m-6 rounded-xl border border-rose-500/20 bg-rose-500/5 p-4 text-sm text-rose-500">
               {indexError}
@@ -459,12 +470,14 @@ export function RepoPage() {
               }
             />
           ) : (
-            <CodeViewer repo={repo} path={activeFile} highlightLines={highlightLines} onAskSelection={handleAskSelection} onOpenDir={handleSelectDir} onOpenFile={handleSelectFileWithLines} />
+            <Suspense fallback={<PanelFallback />}>
+              <CodeViewer repo={repo} path={activeFile} highlightLines={highlightLines} onAskSelection={handleAskSelection} onOpenDir={handleSelectDir} onOpenFile={handleSelectFileWithLines} />
+            </Suspense>
           )}
         </main>
         {chatOpen && chatDock === "docked" && (
           <aside className="hidden w-[380px] shrink-0 border-l border-border/60 lg:flex lg:flex-col">
-            <ChatPanel
+            <ChatPanelHost
               repo={repo}
               messages={chat.messages}
               onSend={(text) => void chat.send(text)}
@@ -534,7 +547,7 @@ export function RepoPage() {
               <GripHorizontal className="size-3.5 text-muted-foreground/50" />
             </div>
           </div>
-          <ChatPanel
+          <ChatPanelHost
             repo={repo}
             messages={chat.messages}
             onSend={(text) => void chat.send(text)}
@@ -572,7 +585,7 @@ export function RepoPage() {
               <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground">Ask</span>
               <button type="button" onClick={toggleDock} className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-muted"><Maximize2 className="size-3" /></button>
             </div>
-            <ChatPanel
+            <ChatPanelHost
               repo={repo}
               messages={chat.messages}
               onSend={(text) => void chat.send(text)}

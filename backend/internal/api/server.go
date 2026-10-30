@@ -2,6 +2,8 @@
 package api
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,6 +11,7 @@ import (
 	"io"
 	"io/fs"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"path"
@@ -534,11 +537,18 @@ func (s *Server) staticHandler() http.Handler {
 		}
 		if f, err := webFS.Open(rel); err == nil {
 			_ = f.Close()
+			cacheControl := "no-cache"
 			if strings.HasPrefix(rel, "assets/") {
-				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-			} else {
-				w.Header().Set("Cache-Control", "no-cache")
+				cacheControl = "public, max-age=31536000, immutable"
 			}
+			if compressible(rel) && acceptsGzip(r) {
+				if data, readErr := fs.ReadFile(webFS, rel); readErr == nil {
+					writeCompressed(w, r, rel, data, cacheControl)
+					return
+				}
+			}
+			w.Header().Set("Cache-Control", cacheControl)
+			w.Header().Add("Vary", "Accept-Encoding")
 			fileServer.ServeHTTP(w, r)
 			return
 		}
@@ -547,9 +557,7 @@ func (s *Server) staticHandler() http.Handler {
 			http.NotFound(w, r)
 			return
 		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Cache-Control", "no-cache")
-		_, _ = w.Write(data)
+		writeCompressed(w, r, "index.html", data, "no-cache")
 	})
 }
 
@@ -678,4 +686,81 @@ func repoSummary(repo *model.Repo) *model.Repo {
 		cp.Wiki = &wiki
 	}
 	return &cp
+}
+
+var staticGzipCache sync.Map // path+size -> gzip payload
+
+var compressibleExt = map[string]bool{
+	".html": true, ".htm": true, ".js": true, ".mjs": true, ".css": true,
+	".json": true, ".map": true, ".svg": true, ".txt": true, ".xml": true,
+	".wasm": true, ".webmanifest": true,
+}
+
+func compressible(name string) bool {
+	return compressibleExt[strings.ToLower(path.Ext(name))]
+}
+
+func acceptsGzip(r *http.Request) bool {
+	for _, part := range strings.Split(r.Header.Get("Accept-Encoding"), ",") {
+		if strings.EqualFold(strings.TrimSpace(strings.SplitN(part, ";", 2)[0]), "gzip") {
+			return true
+		}
+	}
+	return false
+}
+
+func writeCompressed(w http.ResponseWriter, r *http.Request, name string, data []byte, cacheControl string) {
+	contentType := mime.TypeByExtension(path.Ext(name))
+	if contentType == "" {
+		contentType = http.DetectContentType(data)
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", cacheControl)
+	w.Header().Add("Vary", "Accept-Encoding")
+
+	useGzip := acceptsGzip(r) && compressible(name) && len(data) > 1024
+	if !useGzip {
+		w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+		if r.Method != http.MethodHead {
+			_, _ = w.Write(data)
+		}
+		return
+	}
+
+	key := name + ":" + strconv.Itoa(len(data))
+	if cached, ok := staticGzipCache.Load(key); ok {
+		payload := cached.([]byte)
+		w.Header().Set("Content-Encoding", "gzip")
+		w.Header().Set("Content-Length", strconv.Itoa(len(payload)))
+		if r.Method != http.MethodHead {
+			_, _ = w.Write(payload)
+		}
+		return
+	}
+
+	var buf bytes.Buffer
+	writer, err := gzip.NewWriterLevel(&buf, gzip.BestCompression)
+	if err != nil {
+		w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+		if r.Method != http.MethodHead {
+			_, _ = w.Write(data)
+		}
+		return
+	}
+	if _, err := writer.Write(data); err != nil {
+		writer.Close()
+		w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+		if r.Method != http.MethodHead {
+			_, _ = w.Write(data)
+		}
+		return
+	}
+	_ = writer.Close()
+	payload := buf.Bytes()
+	staticGzipCache.Store(key, payload)
+	w.Header().Set("Content-Encoding", "gzip")
+	w.Header().Set("Content-Length", strconv.Itoa(len(payload)))
+	if r.Method != http.MethodHead {
+		_, _ = w.Write(payload)
+	}
 }

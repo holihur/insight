@@ -1,4 +1,4 @@
-import { Children, isValidElement, useRef, type ReactNode, Fragment, createElement } from "react"
+import { Children, isValidElement, useMemo, useRef, type ReactNode, Fragment, createElement } from "react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import rehypeHighlight from "rehype-highlight"
@@ -140,6 +140,14 @@ export function Markdown({
   className?: string
   onFileOpen?: (path: string, lines?: [number, number]) => void
 }) {
+  // Generated wikis often label real code fences as ```text / ```plain. That
+  // stops rehype-highlight from auto-detecting, so the block renders without
+  // colors. Drop those placeholder languages and let detection do its job.
+  const normalized = useMemo(
+    () => content.replace(/```[ \t]*(?:text|plain|plaintext|txt|none)[ \t]*\r?\n/gi, "```\n"),
+    [content],
+  )
+
   return (
     <div className={cn("markdown prose prose-neutral dark:prose-invert max-w-none", className)}>
       <ReactMarkdown
@@ -253,7 +261,7 @@ export function Markdown({
           },
         }}
       >
-        {content}
+        {normalized}
       </ReactMarkdown>
     </div>
   )
