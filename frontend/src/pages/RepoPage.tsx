@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useParams, useSearchParams } from "react-router-dom"
-import { ArrowLeft, Loader2, MessageSquare, RefreshCw } from "lucide-react"
+import { ArrowLeft, GripHorizontal, Loader2, MessageSquare, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 import { RepoHeader } from "@/components/repo/RepoHeader"
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher"
@@ -27,6 +27,28 @@ import { cn, isActive } from "@/lib/utils"
 import type { IndexData, TreeNode } from "@/lib/types"
 import { useI18n } from "@/i18n"
 
+const CHAT_POSITION_KEY = "code-insight-chat-position"
+
+type ChatPosition = { x: number; y: number }
+
+function readChatPosition(): ChatPosition | null {
+  try {
+    const raw = window.localStorage.getItem(CHAT_POSITION_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<ChatPosition>
+    if (typeof parsed.x === "number" && typeof parsed.y === "number") {
+      return { x: parsed.x, y: parsed.y }
+    }
+  } catch {
+    // Ignore invalid persisted state.
+  }
+  return null
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), Math.max(min, max))
+}
+
 export function RepoPage() {
   const { id } = useParams<{ id: string }>()
   const { theme, toggle } = useAppTheme()
@@ -39,6 +61,16 @@ export function RepoPage() {
   const [indexLoading, setIndexLoading] = useState(false)
   const [indexError, setIndexError] = useState<string | null>(null)
   const [navOpen, setNavOpen] = useState(false)
+  const [chatPos, setChatPos] = useState<ChatPosition | null>(readChatPosition)
+  const chatPanelRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<{
+    startX: number
+    startY: number
+    originX: number
+    originY: number
+    width: number
+    height: number
+  } | null>(null)
 
   const pages = useMemo(() => repo?.wiki?.pages ?? [], [repo?.wiki])
   const requestedSlug = searchParams.get("page") ?? ""
@@ -152,6 +184,64 @@ export function RepoPage() {
   const openChat = useCallback(() => updateParams({ ask: "1" }), [updateParams])
   const closeChat = useCallback(() => updateParams({ ask: null }), [updateParams])
 
+  const startChatDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return
+    const panel = chatPanelRef.current
+    if (!panel) return
+    const rect = panel.getBoundingClientRect()
+    dragRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: rect.left,
+      originY: rect.top,
+      width: rect.width,
+      height: rect.height,
+    }
+    setChatPos({ x: rect.left, y: rect.top })
+    event.currentTarget.setPointerCapture(event.pointerId)
+    event.preventDefault()
+  }, [])
+
+  const moveChatDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current
+    if (!drag) return
+    setChatPos({
+      x: clamp(drag.originX + event.clientX - drag.startX, 8, window.innerWidth - drag.width - 8),
+      y: clamp(drag.originY + event.clientY - drag.startY, 8, window.innerHeight - drag.height - 8),
+    })
+  }, [])
+
+  const endChatDrag = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current) return
+    dragRef.current = null
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+    const panel = chatPanelRef.current
+    if (!panel) return
+    const rect = panel.getBoundingClientRect()
+    const position = { x: rect.left, y: rect.top }
+    setChatPos(position)
+    window.localStorage.setItem(CHAT_POSITION_KEY, JSON.stringify(position))
+  }, [])
+
+  const resetChatPosition = useCallback(() => {
+    setChatPos(null)
+    window.localStorage.removeItem(CHAT_POSITION_KEY)
+  }, [])
+
+  useEffect(() => {
+    if (!chatOpen || !chatPos) return
+    const panel = chatPanelRef.current
+    if (!panel) return
+    const rect = panel.getBoundingClientRect()
+    const next = {
+      x: clamp(chatPos.x, 8, window.innerWidth - rect.width - 8),
+      y: clamp(chatPos.y, 8, window.innerHeight - rect.height - 8),
+    }
+    if (next.x !== chatPos.x || next.y !== chatPos.y) setChatPos(next)
+  }, [chatOpen, chatPos])
+
   if (loading && !repo) {
     return <RepoLoading />
   }
@@ -263,7 +353,29 @@ export function RepoPage() {
       </Dialog>
 
       {chatOpen && (
-        <div className="fixed bottom-11 right-3 z-50 flex h-[min(640px,calc(100dvh-6rem))] w-[420px] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-sm border border-border bg-background/95 shadow-2xl backdrop-blur-md">
+        <div
+          ref={chatPanelRef}
+          style={
+            chatPos
+              ? { left: chatPos.x, top: chatPos.y, bottom: "auto", transform: "none" }
+              : undefined
+          }
+          className={cn(
+            "fixed z-50 flex h-[min(640px,calc(100dvh-6rem))] w-[min(560px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-sm border border-border bg-background/95 shadow-2xl backdrop-blur-md",
+            !chatPos && "bottom-11 left-1/2 -translate-x-1/2",
+          )}
+        >
+          <div
+            onPointerDown={startChatDrag}
+            onPointerMove={moveChatDrag}
+            onPointerUp={endChatDrag}
+            onPointerCancel={endChatDrag}
+            onDoubleClick={resetChatPosition}
+            title={t("chat.dragHint")}
+            className="flex h-6 shrink-0 cursor-grab touch-none items-center justify-center border-b border-border/50 bg-muted/25 active:cursor-grabbing"
+          >
+            <GripHorizontal className="size-3.5 text-muted-foreground/50" />
+          </div>
           <ChatPanel
             repo={repo}
             messages={chat.messages}
@@ -281,7 +393,7 @@ export function RepoPage() {
         <button
           type="button"
           onClick={openChat}
-          className="fixed bottom-12 right-4 z-40 inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary px-4 py-2 text-xs font-medium text-primary-foreground shadow-lg transition-transform hover:-translate-y-0.5"
+          className="fixed bottom-12 left-1/2 z-40 inline-flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-primary/30 bg-primary px-4 py-2 text-xs font-medium text-primary-foreground shadow-lg transition-transform hover:-translate-y-0.5"
         >
           <MessageSquare className="size-3.5" />
           {t("repo.ask")}
