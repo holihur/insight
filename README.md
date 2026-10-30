@@ -17,6 +17,7 @@
 - **人工覆盖率**：每个方法左侧有勾选标记，确认看过即可打勾，并实时汇总当前 commit 的**总体覆盖率**和**变更覆盖率**。
 - **代码 minimap**：代码右侧显示文件缩略图；已人工确认的方法区块变绿，变更为金；点击即可跳转。
 - **浮动对话**：Ask 面板默认浮在底部居中，可拖动到任意位置，位置会记住，不占用代码宽度。
+- **调用关系索引**：每个 commit 单独建立函数调用图。`Ctrl/⌘ + 点击`函数名跳到定义，`Alt + 点击`查看调用了谁、被谁调用；一个名字有多个实现或调用点时弹出列表。手机上点按函数名即可选择操作。
 - **URL 深链接**：视图、Wiki 页面、文件/目录和对话状态都写入 URL，刷新或分享链接不会丢失。
 - **忽略规则**：支持按目录、package、通配符排除，界面里的 Filters 或仓库根目录的 `.insightignore` 都可以配置。
 - **10 种界面语言**：English、简体中文、Español、हिन्दी、العربية、Português、Русский、日本語、Français、Deutsch。语言与主题切换放在页面底部。
@@ -114,6 +115,21 @@ OPENAI_MODEL=gpt-4o-mini
 /repo/<id>?view=code&path=backend/internal/agent/generate.go
 /repo/<id>?view=code&dir=backend/internal
 ```
+
+## 调用关系
+
+代码视图里，函数名和调用点都可点击：
+
+| 操作 | 桌面端 | 手机端 |
+|---|---|---|
+| 跳转到定义 | `Ctrl/⌘ + 点击` | 点按 → **Go to definition** |
+| 查看调用/被调用 | `Alt + 点击` | 点按 → **Callers & callees** |
+| 多个实现/调用点 | 自动弹出候选列表 | 同左 |
+
+- 索引按 commit 持久化在 `data/<repo>/callgraph/<commit>.json`，切换 commit 自动重建，重新分析会失效。
+- 目前精确解析 Go（`go/ast`，含同包、跨包、接收者和结构体字段类型）；接口方法等同名多实现会标为 `multiple` 并列出全部候选。
+- 其他语言暂时只提供定义入口，调用图后续按语言逐个接入。
+- API：`GET /api/repos/{id}/calls?function=<id>`、`GET /api/repos/{id}/callsites?path=<file>`。
 
 ## 人工覆盖率
 

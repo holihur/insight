@@ -12,6 +12,7 @@ import (
 
 	"github.com/codeinsight/code-insight/internal/agent"
 	"github.com/codeinsight/code-insight/internal/api"
+	"github.com/codeinsight/code-insight/internal/callgraph"
 	"github.com/codeinsight/code-insight/internal/config"
 	"github.com/codeinsight/code-insight/internal/coverage"
 	"github.com/codeinsight/code-insight/internal/llm"
@@ -47,7 +48,8 @@ func main() {
 	gen := agent.NewGenerator(cfg, st, model)
 	chat := agent.NewChatter(cfg, st, model)
 	cov := coverage.New(cfg, st)
-	srv := api.New(cfg, st, gen, chat, cov)
+	calls := callgraph.New(cfg, st)
+	srv := api.New(cfg, st, gen, chat, cov, calls)
 
 	if cfg.WebDir != "" {
 		log.Printf("serving frontend from %s", cfg.WebDir)

@@ -1,4 +1,6 @@
 import type {
+  CallResult,
+  CallSitesResult,
   ChatEvent,
   Coverage,
   FileContent,
@@ -82,6 +84,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ functionId, reviewed }),
     }),
+
+  getCalls: (id: string, functionId: string) =>
+    request<CallResult>(`/repos/${id}/calls?function=${encodeURIComponent(functionId)}`),
+
+  getCallSites: (id: string, path: string) =>
+    request<CallSitesResult>(`/repos/${id}/callsites?path=${encodeURIComponent(path)}`),
 
   updateIgnore: (id: string, patterns: string[]) =>
     request<Repo>(`/repos/${id}/ignore`, {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react"
 import {
   Check,
   CheckCheck,
@@ -54,6 +54,7 @@ import elixir from "highlight.js/lib/languages/elixir"
 import haskell from "highlight.js/lib/languages/haskell"
 
 import { Badge } from "@/components/ui/badge"
+import { CallGraphDialog } from "@/components/repo/CallGraphDialog"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CodeMinimap } from "@/components/repo/CodeMinimap"
@@ -68,8 +69,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { api } from "@/lib/api"
+import { injectTokenSpans, lineStartOffsets, siteSpans } from "@/lib/codeTokens"
 import { cn, formatNumber } from "@/lib/utils"
-import type { Coverage, CoverageFunction, FileContent, Repo } from "@/lib/types"
+import type { CallSite, Coverage, CoverageFunction, FileContent, Repo } from "@/lib/types"
 import { useI18n } from "@/i18n"
 
 const languages: Array<[string, unknown]> = [
@@ -165,12 +167,14 @@ export function CodeViewer({
   highlightLines,
   onAskSelection,
   onOpenDir,
+  onOpenFile,
 }: {
   repo: Repo
   path: string | null
   highlightLines?: [number, number] | null
   onAskSelection?: (code: string, path: string, lines: [number, number]) => void
   onOpenDir?: (path: string) => void
+  onOpenFile?: (path: string, lines?: [number, number]) => void
 }) {
   const { t } = useI18n()
   const [file, setFile] = useState<FileContent | null>(null)
@@ -189,6 +193,11 @@ export function CodeViewer({
   const [findQuery, setFindQuery] = useState("")
   const [findIndex, setFindIndex] = useState(0)
   const [selection, setSelection] = useState<{ text: string; lines: [number, number] } | null>(null)
+  const [callSites, setCallSites] = useState<CallSite[]>([])
+  const [callsIndexed, setCallsIndexed] = useState(false)
+  const [tokenSheet, setTokenSheet] = useState<{ site: CallSite; mode: "menu" | "def" | "calls" } | null>(null)
+  const [callPanel, setCallPanel] = useState<string | null>(null)
+  const callSitesRequestRef = useRef(0)
   const requestRef = useRef(0)
   const coverageRequestRef = useRef(0)
   const codeScrollRef = useRef<HTMLDivElement>(null)
@@ -241,6 +250,27 @@ export function CodeViewer({
   }, [repo.id, path, t])
 
   useEffect(() => {
+    if (!path) {
+      setCallSites([])
+      setCallsIndexed(false)
+      return
+    }
+    const requestID = ++callSitesRequestRef.current
+    api
+      .getCallSites(repo.id, path)
+      .then((data) => {
+        if (callSitesRequestRef.current !== requestID) return
+        setCallSites(data.sites ?? [])
+        setCallsIndexed(data.indexed)
+      })
+      .catch(() => {
+        if (callSitesRequestRef.current !== requestID) return
+        setCallSites([])
+        setCallsIndexed(false)
+      })
+  }, [repo.id, path])
+
+  useEffect(() => {
     setPatternsText((repo.ignore ?? []).join("\n"))
   }, [repo.ignore])
 
@@ -285,6 +315,41 @@ export function CodeViewer({
       return escapeHtml(code)
     }
   }, [file, visible])
+
+  const allSites = useMemo<CallSite[]>(() => {
+    const known = new Set(callSites.filter((site) => site.kind === "def").map((site) => `${site.line}:${site.token}`))
+    const extra: CallSite[] = []
+    for (const fn of coverage?.functions ?? []) {
+      const base = fn.name.slice(fn.name.lastIndexOf(".") + 1)
+      const line = lines[fn.startLine - 1]
+      if (!line || known.has(`${fn.startLine}:${base}`)) continue
+      const col = line.indexOf(base)
+      if (col < 0) continue
+      extra.push({
+        path: path ?? "",
+        line: fn.startLine,
+        col,
+        endCol: col + base.length,
+        token: base,
+        kind: "def",
+        functionId: fn.id,
+        targets: [{ id: fn.id, path: path ?? "", name: fn.name, line: fn.startLine }],
+      })
+    }
+    return [...callSites, ...extra]
+  }, [callSites, coverage, lines, path])
+
+  const lineStarts = useMemo(() => lineStartOffsets(visible), [visible])
+  const tokenSpans = useMemo(
+    () => siteSpans(allSites, lineStarts, visible.length),
+    [allSites, lineStarts, visible.length],
+  )
+  const highlightedMarkup = useMemo(() => injectTokenSpans(highlighted, tokenSpans), [highlighted, tokenSpans])
+  const siteByKey = useMemo(() => {
+    const map = new Map<string, CallSite>()
+    for (const site of allSites) map.set(`${site.line}:${site.col}`, site)
+    return map
+  }, [allSites])
 
   // jump to highlighted lines when they change
   useEffect(() => {
@@ -425,6 +490,76 @@ export function CodeViewer({
     return line >= a && line <= b
   }
 
+  const goTo = (targetPath: string, line: number) => {
+    if (onOpenFile) onOpenFile(targetPath, [line, line])
+    else if (targetPath === path) jumpToLine(line)
+  }
+
+  const chooseDefinitions = (site: CallSite) => {
+    const targets = site.targets ?? []
+    if (!targets.length) {
+      toast.info(t("callgraph.noTargets"))
+      return
+    }
+    if (targets.length === 1) {
+      goTo(targets[0].path, targets[0].line)
+      return
+    }
+    setTokenSheet({ site, mode: "def" })
+  }
+
+  const openDefinitions = async (site: CallSite) => {
+    if (site.kind === "def" && site.functionId) {
+      try {
+        const res = await api.getCalls(repo.id, site.functionId)
+        const impls = (res.implementations ?? []).filter((item) => item.id !== site.functionId)
+        if (impls.length > 0) {
+          setTokenSheet({ site: { ...site, targets: impls }, mode: "def" })
+          return
+        }
+        toast.info(t("callgraph.onlyDefinition"))
+        return
+      } catch {
+        // fall through to the known targets
+      }
+    }
+    chooseDefinitions(site)
+  }
+
+  const chooseCalls = (site: CallSite) => {
+    const targets = site.targets ?? []
+    if (!targets.length) {
+      toast.info(t("callgraph.noTargets"))
+      return
+    }
+    if (targets.length === 1) {
+      setCallPanel(targets[0].id)
+      return
+    }
+    setTokenSheet({ site, mode: "calls" })
+  }
+
+  const handleTokenClick = (event: ReactMouseEvent<HTMLElement>) => {
+    const element = (event.target as HTMLElement).closest("[data-cg-key]")
+    if (!element) return
+    const site = siteByKey.get(element.getAttribute("data-cg-key") ?? "")
+    if (!site) return
+    const coarse = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches
+    if (coarse) {
+      setTokenSheet({ site, mode: "menu" })
+      return
+    }
+    if (event.metaKey || event.ctrlKey) {
+      event.preventDefault()
+      void openDefinitions(site)
+      return
+    }
+    if (event.altKey) {
+      event.preventDefault()
+      chooseCalls(site)
+    }
+  }
+
   if (!path) {
     return (
       <div className="grid h-full place-items-center p-8">
@@ -541,6 +676,11 @@ export function CodeViewer({
               <span>{searchMatches.length ? `${findIndex + 1}/${searchMatches.length}` : "0"}</span>
               <Button variant="ghost" size="icon-sm" className="size-6" disabled={!searchMatches.length} onClick={() => { const prev = (findIndex - 1 + searchMatches.length) % searchMatches.length; setFindIndex(prev); jumpToLine(searchMatches[prev])}} aria-label="上一个"><ChevronUp className="size-3" /></Button>
               <Button variant="ghost" size="icon-sm" className="size-6" disabled={!searchMatches.length} onClick={() => { const nxt = (findIndex + 1) % searchMatches.length; setFindIndex(nxt); jumpToLine(searchMatches[nxt])}} aria-label="下一个"><ChevronDown className="size-3" /></Button>
+            </span>
+          )}
+          {callsIndexed && (
+            <span className="hidden items-center gap-1 text-[10px] text-muted-foreground xl:inline-flex" title={t("callgraph.hint")}>
+              <ListTree className="size-3" /> {t("callgraph.hint")}
             </span>
           )}
           <div className="ml-auto flex items-center gap-1">
@@ -727,8 +867,8 @@ export function CodeViewer({
                 )
               })}
             </div>
-            <pre ref={preRef} className="flex-1 overflow-x-auto px-4 py-4 font-mono">
-              <code dangerouslySetInnerHTML={{ __html: highlighted }} />
+            <pre ref={preRef} onClick={handleTokenClick} className="flex-1 overflow-x-auto px-4 py-4 font-mono">
+              <code dangerouslySetInnerHTML={{ __html: highlightedMarkup }} />
             </pre>
           </div>
         )}
@@ -760,6 +900,90 @@ export function CodeViewer({
           searchLines={searchMatches}
         />
       </div>
+
+      <Dialog open={tokenSheet !== null} onOpenChange={(open) => !open && setTokenSheet(null)}>
+        <DialogContent className="max-sm:bottom-0 max-sm:top-auto max-sm:max-h-[70dvh] max-sm:w-full max-sm:max-w-none max-sm:translate-y-0 max-sm:rounded-b-none sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-mono text-sm">
+              {t("callgraph.openToken", { name: tokenSheet?.site.token ?? "" })}
+            </DialogTitle>
+            <DialogDescription className="font-mono text-[10px]">
+              {tokenSheet?.mode === "menu"
+                ? `${tokenSheet.site.path}:${tokenSheet.site.line}`
+                : t("callgraph.pick")}
+            </DialogDescription>
+          </DialogHeader>
+          {tokenSheet?.mode === "menu" ? (
+            <div className="grid gap-2">
+              <Button
+                variant="outline"
+                className="h-10 justify-start gap-2"
+                onClick={() => {
+                  const site = tokenSheet.site
+                  setTokenSheet(null)
+                  void openDefinitions(site)
+                }}
+              >
+                <FileCode2 className="size-4" />
+                {t("callgraph.goToDef")}
+                {(tokenSheet.site.targets?.length ?? 0) > 1 && (
+                  <Badge variant="outline" className="ml-auto text-[9px]">
+                    {tokenSheet.site.targets?.length}
+                  </Badge>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                className="h-10 justify-start gap-2"
+                onClick={() => {
+                  const site = tokenSheet.site
+                  setTokenSheet(null)
+                  chooseCalls(site)
+                }}
+              >
+                <ListTree className="size-4" />
+                {t("callgraph.showCalls")}
+                {(tokenSheet.site.targets?.length ?? 0) > 1 && (
+                  <Badge variant="outline" className="ml-auto text-[9px]">
+                    {tokenSheet.site.targets?.length}
+                  </Badge>
+                )}
+              </Button>
+            </div>
+          ) : (
+            <div className="max-h-[50dvh] space-y-1 overflow-y-auto">
+              {(tokenSheet?.site.targets ?? []).map((target) => (
+                <button
+                  key={target.id}
+                  type="button"
+                  onClick={() => {
+                    const mode = tokenSheet?.mode
+                    setTokenSheet(null)
+                    if (mode === "calls") setCallPanel(target.id)
+                    else goTo(target.path, target.line)
+                  }}
+                  className="flex w-full items-center gap-2 rounded-sm border border-border/50 px-2.5 py-2 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-mono text-[11px]">{target.name}</span>
+                    <span className="block truncate font-mono text-[10px] text-muted-foreground">
+                      {target.path}:{target.line}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <CallGraphDialog
+        repoId={repo.id}
+        functionId={callPanel}
+        open={callPanel !== null}
+        onOpenChange={(open) => !open && setCallPanel(null)}
+        onNavigate={goTo}
+      />
 
       <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
         <DialogContent className="max-w-lg">

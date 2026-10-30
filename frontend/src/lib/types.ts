@@ -157,3 +157,59 @@ export interface Coverage {
   functions: CoverageFunction[]
   updatedAt: string
 }
+
+export interface CallTarget {
+  id: string
+  path: string
+  name: string
+  line: number
+}
+
+export interface CallSite {
+  path: string
+  line: number
+  col: number
+  endCol: number
+  token: string
+  kind: "call" | "def"
+  confidence?: "exact" | "local" | "receiver" | "name" | "multiple"
+  functionId?: string
+  targets?: CallTarget[] | null
+}
+
+export interface CallNode {
+  id: string
+  path: string
+  name: string
+  kind: "function" | "method"
+  startLine: number
+  endLine: number
+  receiver?: string
+}
+
+export interface CallLink {
+  node: CallNode
+  path: string
+  line: number
+  confidence?: string
+}
+
+export interface CallResult {
+  function: CallNode
+  callees: CallLink[]
+  callers: CallLink[]
+  implementations: CallTarget[] | null
+  commit: string
+  indexed: boolean
+  goFiles: number
+  truncated: boolean
+}
+
+export interface CallSitesResult {
+  path: string
+  commit: string
+  sites: CallSite[] | null
+  indexed: boolean
+  goFiles: number
+  truncated: boolean
+}

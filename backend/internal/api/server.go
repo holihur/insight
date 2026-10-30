@@ -22,6 +22,7 @@ import (
 
 	"github.com/codeinsight/code-insight/internal/agent"
 	"github.com/codeinsight/code-insight/internal/analysis"
+	"github.com/codeinsight/code-insight/internal/callgraph"
 	"github.com/codeinsight/code-insight/internal/config"
 	covsvc "github.com/codeinsight/code-insight/internal/coverage"
 	"github.com/codeinsight/code-insight/internal/llm"
@@ -37,13 +38,14 @@ type Server struct {
 	gen      *agent.Generator
 	chat     *agent.Chatter
 	coverage *covsvc.Service
+	calls    *callgraph.Service
 	mu       sync.Mutex
 	running  map[string]bool
 }
 
 // New creates the API server.
-func New(cfg config.Config, st *store.Store, gen *agent.Generator, chat *agent.Chatter, cov *covsvc.Service) *Server {
-	return &Server{cfg: cfg, store: st, gen: gen, chat: chat, coverage: cov, running: map[string]bool{}}
+func New(cfg config.Config, st *store.Store, gen *agent.Generator, chat *agent.Chatter, cov *covsvc.Service, calls *callgraph.Service) *Server {
+	return &Server{cfg: cfg, store: st, gen: gen, chat: chat, coverage: cov, calls: calls, running: map[string]bool{}}
 }
 
 // Handler builds the complete HTTP handler.
@@ -59,6 +61,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/repos/{id}/file", s.getFile)
 	mux.HandleFunc("GET /api/repos/{id}/coverage", s.getCoverage)
 	mux.HandleFunc("POST /api/repos/{id}/coverage/review", s.reviewFunction)
+	mux.HandleFunc("GET /api/repos/{id}/calls", s.getCalls)
+	mux.HandleFunc("GET /api/repos/{id}/callsites", s.getCallSites)
 	mux.HandleFunc("PUT /api/repos/{id}/ignore", s.updateIgnore)
 	mux.HandleFunc("POST /api/repos/{id}/chat", s.chatStream)
 	mux.Handle("/", s.staticHandler())
@@ -166,6 +170,7 @@ func (s *Server) deleteRepo(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "wait for the current analysis to finish before deleting")
 		return
 	}
+	s.calls.Invalidate(id)
 	if err := s.store.Delete(id); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			writeError(w, http.StatusNotFound, "repository not found")
@@ -294,6 +299,52 @@ func (s *Server) getCoverage(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, data)
 }
 
+func (s *Server) getCalls(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, err := s.store.Get(id); err != nil {
+		writeError(w, http.StatusNotFound, "repository not found")
+		return
+	}
+	functionID := strings.TrimSpace(r.URL.Query().Get("function"))
+	if functionID == "" {
+		writeError(w, http.StatusBadRequest, "function is required")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+	defer cancel()
+	data, err := s.calls.Get(ctx, id, functionID)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "repository not found")
+			return
+		}
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, data)
+}
+
+func (s *Server) getCallSites(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, err := s.store.Get(id); err != nil {
+		writeError(w, http.StatusNotFound, "repository not found")
+		return
+	}
+	filePath := strings.TrimSpace(r.URL.Query().Get("path"))
+	if filePath == "" {
+		writeError(w, http.StatusBadRequest, "path is required")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
+	defer cancel()
+	data, err := s.calls.Sites(ctx, id, filePath)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, data)
+}
+
 func (s *Server) reviewFunction(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	var req struct {
@@ -376,6 +427,8 @@ func (s *Server) startJob(id string, regenerate bool) bool {
 		if err != nil {
 			log.Printf("job %s finished with error: %v", id, err)
 		}
+		// The checkout and commit may have changed; rebuild the call index lazily.
+		s.calls.Invalidate(id)
 	}()
 	return true
 }

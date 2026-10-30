@@ -459,7 +459,7 @@ export function RepoPage() {
               }
             />
           ) : (
-            <CodeViewer repo={repo} path={activeFile} highlightLines={highlightLines} onAskSelection={handleAskSelection} onOpenDir={handleSelectDir} />
+            <CodeViewer repo={repo} path={activeFile} highlightLines={highlightLines} onAskSelection={handleAskSelection} onOpenDir={handleSelectDir} onOpenFile={handleSelectFileWithLines} />
           )}
         </main>
         {chatOpen && chatDock === "docked" && (

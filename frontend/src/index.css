@@ -577,3 +577,27 @@ input[type="number"]::-webkit-outer-spin-button {
 [dir="rtl"] .rtl-flip {
   transform: scaleX(-1);
 }
+
+/* Clickable call/definition tokens in the code viewer */
+.cg-token {
+  cursor: pointer;
+  border-bottom: 1px dotted color-mix(in oklch, var(--primary) 45%, transparent);
+  border-radius: 2px;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+.cg-token:hover {
+  background: color-mix(in oklch, var(--primary) 16%, transparent);
+  border-bottom-color: var(--primary);
+}
+.cg-token-def {
+  border-bottom-style: solid;
+  border-bottom-color: color-mix(in oklch, var(--primary) 28%, transparent);
+}
+.cg-token-ambiguous {
+  border-bottom-style: dashed;
+}
+@media (pointer: coarse) {
+  .cg-token {
+    border-bottom-width: 2px;
+  }
+}
