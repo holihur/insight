@@ -6,7 +6,6 @@ import {
   Menu,
   MessageSquare,
   RefreshCw,
-  Sparkles,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -95,14 +94,9 @@ export function RepoHeader({
           </TooltipTrigger>
           <TooltipContent>{t("code.github")}</TooltipContent>
         </Tooltip>
-        <Button size="sm" onClick={onAsk} className="gap-1.5 xl:hidden">
+        <Button size="sm" onClick={onAsk} className="gap-1.5">
           <MessageSquare />
           <span className="hidden sm:inline">{t("repo.ask")}</span>
-        </Button>
-        <Button size="sm" variant="secondary" className="hidden gap-1.5 xl:inline-flex" asChild>
-          <a href="#chat">
-            <Sparkles /> {t("repo.ask")}
-          </a>
         </Button>
       </div>
 

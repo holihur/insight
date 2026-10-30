@@ -63,10 +63,12 @@ export function WikiSidebar({
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
-    if (!activeDir) return
+    const target = activeDir ?? activeFile
+    if (!target) return
+    const parts = target.split("/")
+    if (activeFile) parts.pop()
     setExpanded((prev) => {
       const next = { ...prev }
-      const parts = activeDir.split("/")
       let path = ""
       for (const part of parts) {
         path = path ? `${path}/${part}` : part
@@ -74,7 +76,7 @@ export function WikiSidebar({
       }
       return next
     })
-  }, [activeDir])
+  }, [activeDir, activeFile])
 
   const languages = (repo.stats.languages ?? []).slice(0, 5)
   const matches = useMemo(() => {

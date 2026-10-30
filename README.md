@@ -15,6 +15,9 @@
 - **直接在浏览器里读代码**：左侧文件树支持目录展开，右侧带行号、语法高亮、复制和跳转 GitHub。
 - **支持 Mermaid 图**：架构和调用关系可以直接渲染成图。
 - **人工覆盖率**：每个方法左侧有勾选标记，确认看过即可打勾，并实时汇总当前 commit 的**总体覆盖率**和**变更覆盖率**。
+- **代码 minimap**：代码右侧显示文件缩略图；已人工确认的方法区块变绿，变更为金；点击即可跳转。
+- **浮动对话**：Ask 面板浮在页面底部，不占用代码宽度，随时展开追问。
+- **URL 深链接**：视图、Wiki 页面、文件/目录和对话状态都写入 URL，刷新或分享链接不会丢失。
 - **忽略规则**：支持按目录、package、通配符排除，界面里的 Filters 或仓库根目录的 `.insightignore` 都可以配置。
 - **10 种界面语言**：English、简体中文、Español、हिन्दी、العربية、Português、Русский、日本語、Français、Deutsch。语言与主题切换放在页面底部。
 
@@ -28,7 +31,11 @@
 
 ![人工覆盖率](docs/screenshot-coverage.jpg)
 
-每个方法左侧的勾选标记用于人工确认；顶部只显示当前 commit 的总体/变更覆盖率，不占用代码空间。
+每个方法左侧的勾选标记用于人工确认；顶部只显示当前 commit 的总体/变更覆盖率，不占用代码空间。右侧 minimap 会把已确认的方法区块标绿。
+
+![浮动对话](docs/screenshot-chat.jpg)
+
+对话面板固定在底部，展开时不会挤占代码和 minimap 的宽度。
 
 ## 快速开始
 
@@ -97,6 +104,15 @@ OPENAI_MODEL=gpt-4o-mini
    - “Where is authentication handled?”
 5. 需要重新生成时点击 **Regenerate**；删除分析会同时删除本地克隆。
 6. 语言和主题切换在页面底部。
+7. 当前视图、Wiki 页面、文件/目录和对话状态都会写入 URL，刷新或把链接发给同事都能直接回到同一位置。
+
+例如：
+
+```text
+/repo/<id>?view=wiki&page=architecture
+/repo/<id>?view=code&path=backend/internal/agent/generate.go
+/repo/<id>?view=code&dir=backend/internal
+```
 
 ## 人工覆盖率
 
@@ -107,6 +123,7 @@ OPENAI_MODEL=gpt-4o-mini
   - **总体覆盖率**：已看过的方法 / 仓库内所有方法。
   - **变更覆盖率**：已看过的变更方法 / 本次 commit 变更的方法（与父 commit 对比）。
 - 变更方法后面会显示 `changed` 标记。
+- 代码右侧的 minimap 会用绿色标出已确认的方法区块；点击对应区块可以跳到方法起始行。
 - 首个 commit 没有父 commit，因此所有方法都视为变更；无法获取父 commit 时，变更覆盖率显示为不可用。
 
 ### 忽略规则

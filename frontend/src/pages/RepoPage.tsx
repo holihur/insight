@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Link, useParams } from "react-router-dom"
-import { ArrowLeft, Loader2, RefreshCw } from "lucide-react"
+import { Link, useParams, useSearchParams } from "react-router-dom"
+import { ArrowLeft, Loader2, MessageSquare, RefreshCw } from "lucide-react"
 import { toast } from "sonner"
 import { RepoHeader } from "@/components/repo/RepoHeader"
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher"
@@ -34,28 +34,43 @@ export function RepoPage() {
   const { repo, error, loading, refresh, regenerate } = useRepo(id)
   const chat = useChat(id)
 
-  const [view, setView] = useState<RepoView>("wiki")
-  const [activeSlug, setActiveSlug] = useState("overview")
-  const [activeFile, setActiveFile] = useState<string | null>(null)
-  const [activeDir, setActiveDir] = useState<string | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
   const [index, setIndex] = useState<IndexData | null>(null)
   const [indexLoading, setIndexLoading] = useState(false)
   const [indexError, setIndexError] = useState<string | null>(null)
   const [navOpen, setNavOpen] = useState(false)
-  const [chatOpen, setChatOpen] = useState(false)
 
   const pages = useMemo(() => repo?.wiki?.pages ?? [], [repo?.wiki])
+  const requestedSlug = searchParams.get("page") ?? ""
+  const activeFile = searchParams.get("path")
+  const dirParam = searchParams.get("dir")
+  const activeDir = activeFile ? null : dirParam === null ? null : dirParam === "." ? "" : dirParam
+  const view: RepoView = searchParams.get("view") === "code" || activeFile !== null || activeDir !== null ? "code" : "wiki"
+  const chatOpen = searchParams.get("ask") === "1"
   const page = useMemo(
-    () => pages.find((item) => item.slug === activeSlug) ?? pages[0] ?? null,
-    [pages, activeSlug],
+    () => pages.find((item) => item.slug === requestedSlug) ?? pages[0] ?? null,
+    [pages, requestedSlug],
+  )
+  const activeSlug = page?.slug ?? requestedSlug
+
+  const updateParams = useCallback(
+    (patch: Record<string, string | null>) => {
+      const next = new URLSearchParams(searchParams)
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === null || value === "") next.delete(key)
+        else next.set(key, value)
+      }
+      setSearchParams(next, { replace: true })
+    },
+    [searchParams, setSearchParams],
   )
 
   useEffect(() => {
     if (pages.length === 0) return
-    if (!pages.some((item) => item.slug === activeSlug)) {
-      setActiveSlug(pages[0].slug)
+    if (!requestedSlug || !pages.some((item) => item.slug === requestedSlug)) {
+      updateParams({ page: pages[0].slug })
     }
-  }, [pages, activeSlug])
+  }, [pages, requestedSlug, updateParams])
 
   useEffect(() => {
     if (view !== "code" || index || indexLoading || !repo) return
@@ -74,8 +89,8 @@ export function RepoPage() {
   useEffect(() => {
     if (view !== "code" || activeFile || activeDir !== null || !index) return
     const first = index.entryFiles?.[0] ?? index.keyFiles?.[0] ?? firstFile(index.tree)
-    if (first) setActiveFile(first)
-  }, [view, activeFile, activeDir, index])
+    if (first) updateParams({ path: first })
+  }, [view, activeFile, activeDir, index, updateParams])
 
   const handleRegenerate = useCallback(async () => {
     if (!repo) return
@@ -84,7 +99,7 @@ export function RepoPage() {
       toast.success(t("card.regenerating"), {
         description: t("repo.regeneratingDesc"),
       })
-      setActiveSlug(pages[0]?.slug ?? "overview")
+      updateParams({ page: pages[0]?.slug ?? "overview" })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("card.regenerateError"))
     }
@@ -101,19 +116,41 @@ export function RepoPage() {
     }
   }, [regenerate, refresh, repo])
 
-  const handleSelectFile = useCallback((path: string) => {
-    setActiveFile(path)
-    setActiveDir(null)
-    setView("code")
-    setNavOpen(false)
-  }, [])
+  const handleSelectFile = useCallback(
+    (path: string) => {
+      updateParams({ view: "code", path, dir: null })
+      setNavOpen(false)
+    },
+    [updateParams],
+  )
 
-  const handleSelectDir = useCallback((path: string) => {
-    setActiveDir(path)
-    setActiveFile(null)
-    setView("code")
-    setNavOpen(false)
-  }, [])
+  const handleSelectDir = useCallback(
+    (path: string) => {
+      updateParams({ view: "code", dir: path === "" ? "." : path, path: null })
+      setNavOpen(false)
+    },
+    [updateParams],
+  )
+
+  const handleSelectSlug = useCallback(
+    (slug: string) => {
+      updateParams({ view: "wiki", page: slug, path: null, dir: null })
+      setNavOpen(false)
+    },
+    [updateParams],
+  )
+
+  const handleViewChange = useCallback(
+    (next: RepoView) => {
+      if (next === "wiki") updateParams({ view: "wiki", path: null, dir: null })
+      else updateParams({ view: "code" })
+      setNavOpen(false)
+    },
+    [updateParams],
+  )
+
+  const openChat = useCallback(() => updateParams({ ask: "1" }), [updateParams])
+  const closeChat = useCallback(() => updateParams({ ask: null }), [updateParams])
 
   if (loading && !repo) {
     return <RepoLoading />
@@ -147,17 +184,10 @@ export function RepoPage() {
     <WikiSidebar
       repo={repo}
       view={view}
-      onViewChange={(next) => {
-        setView(next)
-        setNavOpen(false)
-      }}
+      onViewChange={handleViewChange}
       pages={pages}
       activeSlug={activeSlug}
-      onSelectSlug={(slug) => {
-        setActiveSlug(slug)
-        setView("wiki")
-        setNavOpen(false)
-      }}
+      onSelectSlug={handleSelectSlug}
       index={index}
       activeFile={activeFile}
       onSelectFile={handleSelectFile}
@@ -170,7 +200,7 @@ export function RepoPage() {
     <div className="flex h-dvh flex-col overflow-hidden">
       <RepoHeader
         repo={repo}
-        onAsk={() => setChatOpen(true)}
+        onAsk={openChat}
         onRegenerate={() => void handleRegenerate()}
         onOpenNav={() => setNavOpen(true)}
       />
@@ -188,7 +218,7 @@ export function RepoPage() {
             <WikiView
               repo={repo}
               page={page}
-              onNavigate={setActiveSlug}
+              onNavigate={handleSelectSlug}
               onRetry={() => void handleRetry()}
             />
           ) : indexError ? (
@@ -214,17 +244,7 @@ export function RepoPage() {
           )}
         </main>
 
-        <aside id="chat" className="hidden w-[380px] shrink-0 border-l border-border/60 xl:flex">
-          <ChatPanel
-            repo={repo}
-            messages={chat.messages}
-            onSend={(text) => void chat.send(text)}
-            onStop={chat.stop}
-            onReset={chat.reset}
-            streaming={chat.streaming}
-            className="w-full"
-          />
-        </aside>
+
       </div>
 
       <footer className="flex h-9 shrink-0 items-center justify-end gap-1 border-t border-border/60 bg-background/60 px-3">
@@ -242,14 +262,8 @@ export function RepoPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={chatOpen} onOpenChange={setChatOpen}>
-        <DialogContent className="flex h-[88dvh] max-w-lg flex-col gap-0 overflow-hidden p-0">
-          <DialogHeader className="sr-only">
-            <DialogTitle>Ask this repository</DialogTitle>
-            <DialogDescription>
-              Chat with an agent grounded in {repo.owner}/{repo.name}.
-            </DialogDescription>
-          </DialogHeader>
+      {chatOpen && (
+        <div className="fixed bottom-11 right-3 z-50 flex h-[min(640px,calc(100dvh-6rem))] w-[420px] max-w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-sm border border-border bg-background/95 shadow-2xl backdrop-blur-md">
           <ChatPanel
             repo={repo}
             messages={chat.messages}
@@ -258,10 +272,21 @@ export function RepoPage() {
             onReset={chat.reset}
             streaming={chat.streaming}
             className="min-h-0 flex-1"
-            inDialog
+            onClose={closeChat}
           />
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
+
+      {!chatOpen && (
+        <button
+          type="button"
+          onClick={openChat}
+          className="fixed bottom-12 right-4 z-40 inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary px-4 py-2 text-xs font-medium text-primary-foreground shadow-lg transition-transform hover:-translate-y-0.5"
+        >
+          <MessageSquare className="size-3.5" />
+          {t("repo.ask")}
+        </button>
+      )}
 
       {chatOpen && (
         <span className="sr-only" aria-live="polite">

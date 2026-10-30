@@ -12,6 +12,7 @@ import {
   Search,
   Square,
   Wrench,
+  X,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -157,6 +158,7 @@ export function ChatPanel({
   className,
   hideHeader = false,
   inDialog = false,
+  onClose,
 }: {
   repo: Repo
   messages: ChatMessage[]
@@ -167,6 +169,7 @@ export function ChatPanel({
   className?: string
   hideHeader?: boolean
   inDialog?: boolean
+  onClose?: () => void
 }) {
   const { t } = useI18n()
   const [value, setValue] = useState("")
@@ -208,15 +211,28 @@ export function ChatPanel({
           <Badge variant={demo ? "warning" : "secondary"} className="ml-1 font-mono text-[9px]">
             {t(demo ? "chat.local" : "chat.grounded")}
           </Badge>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className="ml-auto text-muted-foreground"
-            onClick={onReset}
-            aria-label={t("chat.reset")}
-          >
-            <RotateCcw />
-          </Button>
+          <div className="ml-auto flex items-center gap-0.5">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground"
+              onClick={onReset}
+              aria-label={t("chat.reset")}
+            >
+              <RotateCcw />
+            </Button>
+            {onClose && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground"
+                onClick={onClose}
+                aria-label="Close"
+              >
+                <X />
+              </Button>
+            )}
+          </div>
         </div>
       )}
 

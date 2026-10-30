@@ -49,6 +49,7 @@ import haskell from "highlight.js/lib/languages/haskell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { CodeMinimap } from "@/components/repo/CodeMinimap"
 import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -271,6 +272,12 @@ export function CodeViewer({
     }
   }
 
+  const jumpToLine = (line: number) => {
+    const scroller = codeScrollRef.current
+    if (!scroller) return
+    scroller.scrollTo({ top: Math.max(0, (line - 1) * 20.4), behavior: "smooth" })
+  }
+
   const saveFilters = async () => {
     if (savingFilters) return
     setSavingFilters(true)
@@ -411,7 +418,8 @@ export function CodeViewer({
         </div>
       )}
 
-      <div ref={codeScrollRef} className="min-h-0 flex-1 overflow-auto">
+      <div className="flex min-h-0 flex-1">
+        <div ref={codeScrollRef} className="min-h-0 flex-1 overflow-auto">
         {loading && (
           <div className="space-y-2 p-5">
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -496,6 +504,13 @@ export function CodeViewer({
             .
           </div>
         )}
+        </div>
+        <CodeMinimap
+          totalLines={Math.min(lines.length, MAX_LINES)}
+          functions={coverage?.functions ?? []}
+          scrollRef={codeScrollRef}
+          onJumpLine={jumpToLine}
+        />
       </div>
 
       <Dialog open={filtersOpen} onOpenChange={setFiltersOpen}>
