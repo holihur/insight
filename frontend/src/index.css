@@ -96,6 +96,7 @@
   --animate-fade-in: fade-in 0.35s ease-out both;
   --animate-shimmer: shimmer 1.8s linear infinite;
   --animate-pulse-soft: pulse-soft 2.4s ease-in-out infinite;
+  --animate-float: float 6s ease-in-out infinite;
 }
 
 @keyframes fade-up {
@@ -113,6 +114,10 @@
 @keyframes pulse-soft {
   0%, 100% { opacity: 0.55; }
   50% { opacity: 1; }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
 }
 
 @layer base {

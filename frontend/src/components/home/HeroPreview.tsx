@@ -27,10 +27,11 @@ const pages = [
 
 export function HeroPreview() {
   return (
-    <div className="relative mx-auto w-full max-w-lg animate-fade-up [animation-delay:150ms]">
-      <div className="absolute -inset-6 -z-10 rounded-[2rem] bg-gradient-to-br from-amber-500/12 via-orange-700/8 to-transparent blur-2xl" />
-      <div className="relative overflow-hidden rounded-sm border border-primary/20 bg-card/75 shadow-[0_36px_90px_-36px_rgba(0,0,0,0.85)] backdrop-blur">
-        <MazeIcon className="host-watermark size-40" />
+    <div className="group relative mx-auto w-full max-w-lg animate-fade-up [animation-delay:150ms] transition-transform duration-700 hover:-translate-y-1 hover:scale-[1.008]">
+      <div className="absolute -inset-6 -z-10 rounded-[2rem] bg-gradient-to-br from-amber-500/12 via-orange-700/8 to-transparent blur-2xl transition-opacity duration-700 group-hover:opacity-100 opacity-80" />
+      <div className="absolute -inset-6 -z-10 rounded-[2rem] bg-gradient-to-br from-primary/0 via-primary/6 to-transparent blur-xl opacity-0 transition-opacity duration-700 group-hover:opacity-100 motion-safe:animate-pulse-soft" />
+      <div className="relative overflow-hidden rounded-sm border border-primary/20 bg-card/75 shadow-[0_36px_90px_-36px_rgba(0,0,0,0.85)] backdrop-blur transition-all duration-700 group-hover:shadow-[0_36px_90px_-18px_rgba(217,180,92,0.22)] group-hover:border-primary/30 motion-safe:animate-float hover:motion-safe:animate-none">
+        <MazeIcon className="host-watermark size-40 motion-safe:animate-pulse-soft [animation-duration:4s]" />
         <div className="flex items-center gap-2 border-b border-border/60 bg-muted/30 px-3 py-2.5">
           <div className="flex gap-1.5">
             <span className="size-2.5 rounded-full bg-[#b4552d]/80" />
@@ -132,7 +133,10 @@ export function HeroPreview() {
               <div className="h-1.5 w-[75%] rounded-full bg-muted" />
             </div>
             <div className="mt-3 flex items-center gap-1.5 text-[9px] text-muted-foreground">
-              <span className="size-1.5 animate-pulse rounded-full bg-primary" />
+              <span className="relative grid place-items-center size-1.5">
+                <span className="absolute inset-0 rounded-full bg-primary animate-ping [animation-duration:1.8s] opacity-30" />
+                <span className="relative size-1.5 rounded-full bg-primary" />
+              </span>
               Writing 6 sections from source…
             </div>
           </div>
