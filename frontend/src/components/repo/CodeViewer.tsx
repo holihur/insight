@@ -160,6 +160,11 @@ const languageMap: Record<string, string> = {
 
 const MAX_LINES = 8000
 const PAGE_LINES = 2500
+// Keep the gutter rows and the highlighted code on the exact same integer
+// line height. Fractional values (for example 1.7 * 12px = 20.4px) are
+// rounded differently by browsers and made the checkbox drift away from the
+// function signature further down the file.
+const LINE_HEIGHT = 20
 
 export function CodeViewer({
   repo,
@@ -398,7 +403,7 @@ export function CodeViewer({
   const jumpToLine = (line: number) => {
     const scroller = codeScrollRef.current
     if (!scroller) return
-    scroller.scrollTo({ top: Math.max(0, (line - 1) * 20.4), behavior: "smooth" })
+    scroller.scrollTo({ top: Math.max(0, (line - 1) * LINE_HEIGHT), behavior: "smooth" })
   }
 
   const copyLinkWithLine = async (line: number) => {
@@ -815,7 +820,7 @@ export function CodeViewer({
           )
         })()}
         {!loading && !error && file && (
-          <div className="flex min-w-fit text-[12px] leading-[1.7]" onMouseUp={handleSelectUp}>
+          <div className="flex min-w-fit text-[12px] leading-[20px]" onMouseUp={handleSelectUp}>
             <div className="sticky left-0 z-10 shrink-0 select-none border-r border-border/60 bg-card/60 py-4 pr-2 font-mono text-[11px] text-muted-foreground/50">
               {visible.map((_, index) => {
                 const line = index + 1
@@ -827,7 +832,7 @@ export function CodeViewer({
                   <div
                     key={line}
                     className={cn(
-                      "group flex h-[20.4px] items-center justify-end gap-1 pl-1 leading-[20.4px]",
+                      "group flex h-5 items-center justify-end gap-1 pl-1 leading-5",
                       isHLS && "bg-amber-500/15",
                       !isHLS && fn?.reviewed && "bg-emerald-500/[0.06]",
                       !isHLS && isFind && "bg-amber-500/10",
