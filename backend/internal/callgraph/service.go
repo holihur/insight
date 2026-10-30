@@ -17,15 +17,20 @@ import (
 
 // Service builds, caches and persists per-commit call graphs.
 type Service struct {
-	cfg   config.Config
-	store *store.Store
-	mu    sync.Mutex
-	cache map[string]*Graph
+	cfg         config.Config
+	store       *store.Store
+	mu          sync.Mutex
+	cache       map[string]*Graph
+	parseCaches map[string]*parseCache
 }
 
 // New creates a call-graph service.
 func New(cfg config.Config, st *store.Store) *Service {
-	return &Service{cfg: cfg, store: st, cache: map[string]*Graph{}}
+	return &Service{
+		cfg: cfg, store: st,
+		cache:       map[string]*Graph{},
+		parseCaches: map[string]*parseCache{},
+	}
 }
 
 // Invalidate drops cached and persisted call graphs for a repository.
@@ -36,7 +41,19 @@ func (s *Service) Invalidate(repoID string) {
 	if repoID == "" {
 		return
 	}
-	_ = os.RemoveAll(filepath.Join(s.store.RepoDir(repoID), "callgraph"))
+	// Keep the content-addressed parse cache: unchanged files stay valid and
+	// the next build only parses what actually changed.
+	dir := filepath.Join(s.store.RepoDir(repoID), "callgraph")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || entry.Name() == "parse-cache.json" {
+			continue
+		}
+		_ = os.Remove(filepath.Join(dir, entry.Name()))
+	}
 }
 
 // Get returns callers, callees and implementations for one function.
@@ -70,13 +87,14 @@ func (s *Service) Sites(_ context.Context, repoID, filePath string) (*SitesResul
 		return nil, err
 	}
 	return &SitesResult{
-		Path:      filePath,
-		Commit:    repo.Commit,
-		Sites:     graph.SitesFor(filePath),
-		Indexed:   len(graph.Nodes) > 0,
-		GoFiles:   graph.GoFiles,
-		Files:     graph.Files,
-		Truncated: graph.Truncated,
+		Path:        filePath,
+		Commit:      repo.Commit,
+		Sites:       graph.SitesFor(filePath),
+		Indexed:     len(graph.Nodes) > 0,
+		GoFiles:     graph.GoFiles,
+		Files:       graph.Files,
+		ReusedFiles: graph.ReusedFiles,
+		Truncated:   graph.Truncated,
 	}, nil
 }
 
@@ -100,11 +118,20 @@ func (s *Service) graphFor(repo *model.Repo) (*Graph, error) {
 		return graph, nil
 	}
 
-	graph, err := Build(repo.Commit, root, repo.Ignore, s.cfg.MaxRepoFiles)
+	parseCache := s.parseCaches[repo.ID]
+	if parseCache == nil {
+		parseCache = loadParseCache(filepath.Join(dir, "parse-cache.json"))
+		s.parseCaches[repo.ID] = parseCache
+	}
+
+	graph, err := Build(repo.Commit, root, repo.Ignore, s.cfg.MaxRepoFiles, parseCache)
 	if err != nil {
 		return nil, err
 	}
 	s.cache[repo.ID] = graph
+	if parseCache.takeDirty() {
+		_ = parseCache.save(filepath.Join(dir, "parse-cache.json"))
+	}
 	if err := saveGraph(dir, file, graph); err != nil {
 		// Persisting is best-effort: the in-memory index is still usable.
 		_ = err
@@ -156,7 +183,7 @@ func prune(dir, keep string) {
 		return
 	}
 	for _, entry := range entries {
-		if entry.IsDir() || entry.Name() == keep {
+		if entry.IsDir() || entry.Name() == keep || entry.Name() == "parse-cache.json" {
 			continue
 		}
 		_ = os.Remove(filepath.Join(dir, entry.Name()))

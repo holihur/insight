@@ -68,15 +68,17 @@ type Edge struct {
 
 // Graph is the per-commit index persisted on disk.
 type Graph struct {
-	Version   int               `json:"version"`
-	Commit    string            `json:"commit"`
-	Nodes     map[string]Node   `json:"nodes"`
-	Edges     []Edge            `json:"edges"`
-	Sites     map[string][]Site `json:"sites"`
-	GoFiles   int               `json:"goFiles"`
-	Files     int               `json:"files"`
-	Truncated bool              `json:"truncated"`
-	BuiltAt   time.Time         `json:"builtAt"`
+	Version     int               `json:"version"`
+	Commit      string            `json:"commit"`
+	Nodes       map[string]Node   `json:"nodes"`
+	Edges       []Edge            `json:"edges"`
+	Sites       map[string][]Site `json:"sites"`
+	GoFiles     int               `json:"goFiles"`
+	Files       int               `json:"files"`
+	ReusedFiles int               `json:"reusedFiles,omitempty"`
+	ParsedFiles int               `json:"parsedFiles,omitempty"`
+	Truncated   bool              `json:"truncated"`
+	BuiltAt     time.Time         `json:"builtAt"`
 
 	callees map[string][]int
 	callers map[string][]int
@@ -92,6 +94,7 @@ type Result struct {
 	Indexed         bool     `json:"indexed"`
 	GoFiles         int      `json:"goFiles"`
 	Files           int      `json:"files"`
+	ReusedFiles     int      `json:"reusedFiles,omitempty"`
 	Truncated       bool     `json:"truncated"`
 }
 
@@ -105,13 +108,14 @@ type Link struct {
 
 // SitesResult is the clickable tokens for one file.
 type SitesResult struct {
-	Path      string `json:"path"`
-	Commit    string `json:"commit"`
-	Sites     []Site `json:"sites"`
-	Indexed   bool   `json:"indexed"`
-	GoFiles   int    `json:"goFiles"`
-	Files     int    `json:"files"`
-	Truncated bool   `json:"truncated"`
+	Path        string `json:"path"`
+	Commit      string `json:"commit"`
+	Sites       []Site `json:"sites"`
+	Indexed     bool   `json:"indexed"`
+	GoFiles     int    `json:"goFiles"`
+	Files       int    `json:"files"`
+	ReusedFiles int    `json:"reusedFiles,omitempty"`
+	Truncated   bool   `json:"truncated"`
 }
 
 type fileInfo struct {
@@ -123,28 +127,31 @@ type fileInfo struct {
 }
 
 type builder struct {
-	root      string
-	fset      *token.FileSet
-	files     map[string]*fileInfo
-	types     map[string]map[string]bool
-	fields    map[string]map[string]string // qualified struct type -> field -> qualified type
-	funcs     map[string]map[string][]string
-	methods   map[string][]string
-	methodRec map[string][]string
-	nodes     map[string]Node
-	sites     map[string][]Site
-	edges     []Edge
-	seenEdge  map[string]bool
-	declIDs   map[string]string
-	modules   map[string]moduleInfo
-	js        *jsIndex
-	fileCount int
-	truncated bool
-	maxFiles  int
+	root       string
+	fset       *token.FileSet
+	files      map[string]*fileInfo
+	types      map[string]map[string]bool
+	fields     map[string]map[string]string // qualified struct type -> field -> qualified type
+	funcs      map[string]map[string][]string
+	methods    map[string][]string
+	methodRec  map[string][]string
+	nodes      map[string]Node
+	sites      map[string][]Site
+	edges      []Edge
+	seenEdge   map[string]bool
+	declIDs    map[string]string
+	modules    map[string]moduleInfo
+	js         *jsIndex
+	fileCount  int
+	parseCache *parseCache
+	truncated  bool
+	maxFiles   int
 }
 
-// Build indexes a repository checkout at root for the given commit.
-func Build(commit, root string, ignore []string, maxFiles int) (*Graph, error) {
+// Build indexes a repository checkout at root for the given commit. An
+// optional parse cache makes re-indexing incremental: unchanged files reuse
+// their tree-sitter results instead of being parsed again.
+func Build(commit, root string, ignore []string, maxFiles int, caches ...*parseCache) (*Graph, error) {
 	if maxFiles <= 0 {
 		maxFiles = 8000
 	}
@@ -166,6 +173,10 @@ func Build(commit, root string, ignore []string, maxFiles int) (*Graph, error) {
 		js:        newJSIndex(),
 		maxFiles:  maxFiles,
 	}
+	if len(caches) > 0 && caches[0] != nil {
+		b.parseCache = caches[0]
+		b.parseCache.beginBuild()
+	}
 	if err := b.collect(ig); err != nil {
 		return nil, err
 	}
@@ -181,6 +192,9 @@ func Build(commit, root string, ignore []string, maxFiles int) (*Graph, error) {
 		Files:     len(b.files) + len(b.js.files),
 		Truncated: b.truncated,
 		BuiltAt:   time.Now().UTC(),
+	}
+	if b.parseCache != nil {
+		g.ReusedFiles, g.ParsedFiles = b.parseCache.stats()
 	}
 	g.buildIndexes()
 	return g, nil
@@ -733,14 +747,15 @@ func (g *Graph) Lookup(functionID string) *Result {
 		return nil
 	}
 	res := &Result{
-		Function:  node,
-		Callees:   []Link{},
-		Callers:   []Link{},
-		Commit:    g.Commit,
-		Indexed:   true,
-		GoFiles:   g.GoFiles,
-		Files:     g.Files,
-		Truncated: g.Truncated,
+		Function:    node,
+		Callees:     []Link{},
+		Callers:     []Link{},
+		Commit:      g.Commit,
+		Indexed:     true,
+		GoFiles:     g.GoFiles,
+		Files:       g.Files,
+		ReusedFiles: g.ReusedFiles,
+		Truncated:   g.Truncated,
 	}
 	seen := map[string]bool{}
 	for _, idx := range g.callees[functionID] {

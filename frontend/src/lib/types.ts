@@ -203,6 +203,7 @@ export interface CallResult {
   indexed: boolean
   goFiles: number
   files: number
+  reusedFiles?: number
   truncated: boolean
 }
 
@@ -213,5 +214,6 @@ export interface CallSitesResult {
   indexed: boolean
   goFiles: number
   files: number
+  reusedFiles?: number
   truncated: boolean
 }

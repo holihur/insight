@@ -120,7 +120,24 @@ func (b *builder) buildJS() {
 		file.lineStarts = lineStartsOf(file.content)
 		lang := analysis.LanguageFor(filePath)
 		funcs := analysis.ExtractFunctions(filePath, []byte(file.content), lang)
-		defs, calls, parsed := extractTS(filePath, lang, []byte(file.content))
+		var defs []tsDef
+		var calls []tsCall
+		parsed := true
+		usedCache := false
+		cacheKey := ""
+		if b.parseCache != nil {
+			cacheKey = b.parseCache.key(lang, []byte(file.content))
+			if entry, ok := b.parseCache.get(cacheKey); ok {
+				defs, calls = entry.Defs, entry.Calls
+				usedCache = true
+			}
+		}
+		if !usedCache {
+			defs, calls, parsed = extractTS(filePath, lang, []byte(file.content))
+			if b.parseCache != nil && parsed {
+				b.parseCache.put(cacheKey, &cachedParse{Lang: lang, Defs: defs, Calls: calls})
+			}
+		}
 		file.tsDefs, file.tsCalls, file.tsParsed = defs, calls, parsed
 		if parsed && len(funcs) == 0 && len(defs) > 0 {
 			// Some languages (for example Lua) are not covered by the

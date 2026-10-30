@@ -133,6 +133,7 @@ OPENAI_MODEL=gpt-4o-mini
 - 接口方法、动态分发、类型未知的 `obj.method()` 无法静态确定时标记为 `multiple` 并列出全部候选，而不是猜一个。
 - 局限：不做类型推断，跨文件的 `pkg.fn()` 仅 TS/JS 能按 import 精确解析；同名方法可能给多个候选；Ruby 无括号调用、Elixir 宏等动态写法覆盖有限。
 - API：`GET /api/repos/{id}/calls?function=<id>`、`GET /api/repos/{id}/callsites?path=<file>`。
+- **增量索引**：tree-sitter 解析结果按文件内容哈希缓存（`data/<repo>/callgraph/parse-cache.json`），新 commit 或重新分析时只重新解析变化的文件，未变化文件直接复用；面板里会显示 `N files indexed · M reused`。跨文件名字解析仍会全量重算，保证新增/删除同名函数时调用边不会过期。
 
 ## 人工覆盖率
 
