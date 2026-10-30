@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useParams, useSearchParams } from "react-router-dom"
-import { ArrowLeft, GripHorizontal, Loader2, MessageSquare, PanelRight, Maximize2, RefreshCw } from "lucide-react"
+import { ArrowLeft, GripHorizontal, Loader2, MessageSquare, PanelRight, Maximize2, RefreshCw, X } from "lucide-react"
 import { toast } from "sonner"
 import { RepoHeader } from "@/components/repo/RepoHeader"
 import { LanguageSwitcher } from "@/components/layout/LanguageSwitcher"
@@ -82,7 +82,14 @@ export function RepoPage() {
   const [chatPos, setChatPos] = useState<ChatPosition | null>(readChatPosition)
   const [chatDock, setChatDock] = useState<ChatDockMode>(() => readChatDock())
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
+    try { const v = Number(window.localStorage.getItem("code-insight-sidebar-width")); return Number.isFinite(v) && v >= 180 && v <= 480 ? v : 252 } catch { return 252 }
+  })
+  const [openTabs, setOpenTabs] = useState<string[]>(() => {
+    try { if (!id) return []; const raw = window.localStorage.getItem(`code-insight-tabs:${id}`); return raw ? (JSON.parse(raw) as string[]) : [] } catch { return [] }
+  })
   const chatPanelRef = useRef<HTMLDivElement>(null)
+  const sidebarResizing = useRef(false)
   const dragRef = useRef<{
     startX: number
     startY: number
@@ -285,6 +292,54 @@ export function RepoPage() {
     return () => window.removeEventListener("keydown", handler)
   }, [])
 
+  // open tabs sync
+  useEffect(() => {
+    if (!activeFile) return
+    setOpenTabs((prev) => {
+      if (prev.includes(activeFile)) return prev
+      const next = [...prev, activeFile].slice(-8)
+      try { if (id) window.localStorage.setItem(`code-insight-tabs:${id}`, JSON.stringify(next)) } catch { /* ignore */ }
+      return next
+    })
+  }, [activeFile, id])
+  const closeTab = useCallback((path: string) => {
+    setOpenTabs((prev) => {
+      const next = prev.filter((p) => p !== path)
+      try { if (id) window.localStorage.setItem(`code-insight-tabs:${id}`, JSON.stringify(next)) } catch { /* ignore */ }
+      if (path === activeFile) {
+        const fallback = next[next.length - 1]
+        if (fallback) updateParams({ path: fallback, lines: null })
+        else updateParams({ path: null, lines: null })
+      }
+      return next
+    })
+  }, [activeFile, id, updateParams])
+
+  // sidebar resize
+  const startSidebarResize = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    sidebarResizing.current = true
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const startX = e.clientX
+    const startW = sidebarWidth
+    const onMove = (ev: PointerEvent) => {
+      if (!sidebarResizing.current) return
+      const delta = ev.clientX - startX
+      const next = Math.min(480, Math.max(180, startW + delta))
+      setSidebarWidth(next)
+    }
+    const onUp = () => {
+      sidebarResizing.current = false
+      window.removeEventListener("pointermove", onMove)
+      window.removeEventListener("pointerup", onUp)
+    }
+    window.addEventListener("pointermove", onMove)
+    window.addEventListener("pointerup", onUp)
+  }, [sidebarWidth])
+  useEffect(() => {
+    try { window.localStorage.setItem("code-insight-sidebar-width", String(sidebarWidth)) } catch { /* ignore */ }
+  }, [sidebarWidth])
+
   useEffect(() => {
     if (!chatOpen || !chatPos) return
     const panel = chatPanelRef.current
@@ -351,7 +406,8 @@ export function RepoPage() {
       />
 
       <div className="flex min-h-0 flex-1">
-        <aside className="hidden w-[252px] shrink-0 border-r border-border/60 lg:block">{sidebar}</aside>
+        <aside style={{ width: sidebarWidth }} className="hidden shrink-0 border-r border-border/60 lg:block">{sidebar}</aside>
+        <div onPointerDown={startSidebarResize} className="hidden w-1 shrink-0 cursor-col-resize bg-transparent hover:bg-primary/20 lg:block" aria-hidden />
 
         <main
           className={cn(
@@ -359,6 +415,23 @@ export function RepoPage() {
             view === "wiki" ? "overflow-y-auto" : "flex min-h-0 flex-col",
           )}
         >
+          {view === "code" && openTabs.length > 0 && (
+            <div className="flex h-8 shrink-0 items-center gap-1 overflow-x-auto border-b border-border/60 bg-card/20 px-1.5">
+              {openTabs.map((p) => (
+                <div key={p} className={cn("group flex h-6 shrink-0 items-center gap-1 rounded-sm border px-2 text-[11px]", activeFile === p ? "border-primary/30 bg-primary/10 text-primary" : "border-transparent bg-muted/30 text-muted-foreground hover:bg-muted hover:text-foreground")}>
+                  <button type="button" onClick={() => handleSelectFile(p)} className="max-w-[140px] truncate font-mono" title={p}>
+                    {p.split("/").pop()}
+                  </button>
+                  <button type="button" onClick={() => closeTab(p)} className="grid size-3.5 place-items-center rounded hover:bg-black/10" aria-label={`关闭 ${p}`}>
+                    <X className="size-3" />
+                  </button>
+                </div>
+              ))}
+              {openTabs.length > 1 && (
+                <button type="button" onClick={() => { setOpenTabs([]); try { if (id) window.localStorage.removeItem(`code-insight-tabs:${id}`) } catch { /* ignore */ } }} className="ml-1 shrink-0 font-mono text-[10px] text-muted-foreground hover:text-foreground">清空</button>
+              )}
+            </div>
+          )}
           {view === "wiki" ? (
             <WikiView
               repo={repo}

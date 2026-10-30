@@ -182,6 +182,7 @@ export function CodeViewer({
   const [coverageError, setCoverageError] = useState<string | null>(null)
   const [reviewing, setReviewing] = useState<string | null>(null)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
   const [patternsText, setPatternsText] = useState((repo.ignore ?? []).join("\n"))
   const [savingFilters, setSavingFilters] = useState(false)
   const [visibleCount, setVisibleCount] = useState(PAGE_LINES)
@@ -595,7 +596,12 @@ export function CodeViewer({
             ) : (
               <Skeleton className="h-3 w-48" />
             )}
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex items-center gap-1.5">
+              {coverage && coverage.functions.some((f) => !f.reviewed) && (
+                <Button variant="outline" size="sm" className="h-6 text-[10px]" onClick={() => setDetailsOpen(true)} title="查看未覆盖">
+                  未覆盖 {coverage.functions.filter((f) => !f.reviewed).length}
+                </Button>
+              )}
               {coverage && (
                 <span className="font-mono text-[10px] text-muted-foreground">
                   {t("coverage.functions", { count: coverage.functions.length })}
@@ -781,6 +787,28 @@ export function CodeViewer({
               {t("coverage.save")}
             </Button>
           </DialogFooter>
+          <p className="font-mono text-[10px] text-muted-foreground">共 {patternsText.split("\n").filter(Boolean).length} 条规则 · 输入时下方即时生效预览</p>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
+        <DialogContent className="max-w-lg max-h-[70dvh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>未覆盖函数 · {coverage?.functions.filter((f) => !f.reviewed).length ?? 0}</DialogTitle>
+            <DialogDescription>点击跳转到对应行，勾选即标记已读。最多显示 100 条。</DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto space-y-1 pr-1">
+            {(coverage?.functions.filter((f) => !f.reviewed) ?? []).slice(0, 100).map((fn) => (
+              <div key={fn.id} className="flex items-center gap-2 rounded-sm border border-border/50 px-2 py-1.5 text-xs">
+                <span className="min-w-0 flex-1 truncate font-mono">{fn.name} <span className="text-muted-foreground">:{fn.startLine}</span></span>
+                {fn.changed && <Badge variant="secondary" className="text-[9px]">{t("coverage.changedBadge")}</Badge>}
+                <Button variant="ghost" size="sm" className="h-6 text-[11px]" onClick={() => { setDetailsOpen(false); jumpToLine(fn.startLine) }}>跳转</Button>
+                <Button variant="outline" size="sm" className="h-6 text-[11px]" disabled={reviewing === fn.id} onClick={() => void toggleReviewed(fn)}><Check className="size-3" /> 标记</Button>
+              </div>
+            ))}
+            {(coverage?.functions.filter((f) => !f.reviewed).length ?? 0) === 0 && (
+              <p className="py-6 text-center text-sm text-muted-foreground">全部已覆盖 🎉</p>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>
