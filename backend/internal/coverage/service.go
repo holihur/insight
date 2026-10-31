@@ -143,6 +143,18 @@ func (s *Service) Tree(ctx context.Context, repoID string) (*model.CoverageTree,
 	return tree, nil
 }
 
+// reviewableFuncs keeps only callables. Classes, variables and other symbols
+// are navigation-only: they never participate in human coverage.
+func reviewableFuncs(funcs []analysis.FuncInfo) []analysis.FuncInfo {
+	out := make([]analysis.FuncInfo, 0, len(funcs))
+	for _, fn := range funcs {
+		if fn.Kind == "function" || fn.Kind == "method" {
+			out = append(out, fn)
+		}
+	}
+	return out
+}
+
 func nodeTypeFor(nodePath string) string {
 	if nodePath != "" && path.Ext(nodePath) != "" {
 		return "file"
@@ -241,7 +253,7 @@ func (s *Service) snapshotLocked(ctx context.Context, repo *model.Repo) (*snapsh
 			return nil
 		}
 		lang := analysis.LanguageFor(rel)
-		funcs := analysis.ExtractFunctions(rel, data, lang)
+		funcs := reviewableFuncs(analysis.ExtractFunctions(rel, data, lang))
 		if len(funcs) == 0 {
 			return nil
 		}
