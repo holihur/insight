@@ -149,3 +149,24 @@ type Coverage struct {
 	Functions         []Function `json:"functions"`
 	UpdatedAt         string     `json:"updatedAt"`
 }
+
+// CoverageNode aggregates human review progress for a directory or file.
+type CoverageNode struct {
+	Path            string `json:"path"`
+	Name            string `json:"name"`
+	Type            string `json:"type"` // dir | file
+	Total           int    `json:"total"`
+	Reviewed        int    `json:"reviewed"`
+	Changed         int    `json:"changed"`
+	ReviewedChanged int    `json:"reviewedChanged"`
+	Percent         int    `json:"percent"`
+	ChangedPercent  int    `json:"changedPercent"`
+}
+
+// CoverageTree maps every directory and file to its aggregated coverage.
+type CoverageTree struct {
+	Commit    string                  `json:"commit"`
+	Nodes     map[string]CoverageNode `json:"nodes"`
+	Overall   CoverageNode            `json:"overall"`
+	UpdatedAt string                  `json:"updatedAt"`
+}

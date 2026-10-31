@@ -63,6 +63,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/repos/{id}/index", s.getIndex)
 	mux.HandleFunc("GET /api/repos/{id}/file", s.getFile)
 	mux.HandleFunc("GET /api/repos/{id}/coverage", s.getCoverage)
+	mux.HandleFunc("GET /api/repos/{id}/coverage/tree", s.getCoverageTree)
 	mux.HandleFunc("POST /api/repos/{id}/coverage/review", s.reviewFunction)
 	mux.HandleFunc("GET /api/repos/{id}/calls", s.getCalls)
 	mux.HandleFunc("GET /api/repos/{id}/callsites", s.getCallSites)
@@ -400,6 +401,22 @@ func (s *Server) getCallSites(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 120*time.Second)
 	defer cancel()
 	data, err := s.calls.Sites(ctx, id, filePath)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, data)
+}
+
+func (s *Server) getCoverageTree(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, err := s.store.Get(id); err != nil {
+		writeError(w, http.StatusNotFound, "repository not found")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
+	defer cancel()
+	data, err := s.coverage.Tree(ctx, id)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return

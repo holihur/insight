@@ -3,6 +3,7 @@ import type {
   CallSitesResult,
   ChatEvent,
   Coverage,
+  CoverageTree,
   FileContent,
   Health,
   IndexData,
@@ -73,6 +74,8 @@ export const api = {
     if (end) params.set("end", String(end))
     return request<FileContent>(`/repos/${id}/file?${params.toString()}`)
   },
+
+  getCoverageTree: (id: string) => request<CoverageTree>(`/repos/${id}/coverage/tree`),
 
   getCoverage: (id: string, path?: string) => {
     const params = new URLSearchParams()

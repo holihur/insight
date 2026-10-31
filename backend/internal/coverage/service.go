@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -69,6 +70,84 @@ func (s *Service) Get(ctx context.Context, repoID, filterPath string) (*model.Co
 		return nil, err
 	}
 	return buildCoverage(repo, snap, reviews, filterPath), nil
+}
+
+// Tree returns aggregated coverage for each directory and file.
+func (s *Service) Tree(ctx context.Context, repoID string) (*model.CoverageTree, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	repo, err := s.store.Get(repoID)
+	if err != nil {
+		return nil, err
+	}
+	snap, err := s.snapshotLocked(ctx, repo)
+	if err != nil {
+		return nil, err
+	}
+	reviews, err := s.store.LoadReviews(repoID)
+	if err != nil {
+		return nil, err
+	}
+	reviewed := reviews[reviewKey(repo.Commit)]
+
+	tree := &model.CoverageTree{
+		Commit:    repo.Commit,
+		Nodes:     map[string]model.CoverageNode{},
+		UpdatedAt: time.Now().UTC().Format(time.RFC3339),
+	}
+	ensure := func(nodePath, nodeType string) model.CoverageNode {
+		if node, ok := tree.Nodes[nodePath]; ok {
+			return node
+		}
+		name := nodePath
+		if idx := strings.LastIndex(nodePath, "/"); idx >= 0 {
+			name = nodePath[idx+1:]
+		}
+		node := model.CoverageNode{Path: nodePath, Name: name, Type: nodeType}
+		tree.Nodes[nodePath] = node
+		return node
+	}
+	apply := func(nodePath string, fn model.Function, isReviewed bool) {
+		node := ensure(nodePath, nodeTypeFor(nodePath))
+		node.Total++
+		if fn.Changed {
+			node.Changed++
+		}
+		if isReviewed {
+			node.Reviewed++
+			if fn.Changed {
+				node.ReviewedChanged++
+			}
+		}
+		tree.Nodes[nodePath] = node
+	}
+	for _, fn := range snap.all {
+		isReviewed := reviewed[fn.ID]
+		apply(fn.Path, fn, isReviewed)
+		dir := path.Dir(fn.Path)
+		for dir != "." && dir != "" {
+			apply(dir, fn, isReviewed)
+			dir = path.Dir(dir)
+		}
+		apply("", fn, isReviewed)
+	}
+	for key, node := range tree.Nodes {
+		node.Percent = percent(node.Reviewed, node.Total)
+		if node.Changed > 0 {
+			node.ChangedPercent = percent(node.ReviewedChanged, node.Changed)
+		}
+		tree.Nodes[key] = node
+	}
+	tree.Overall = tree.Nodes[""]
+	return tree, nil
+}
+
+func nodeTypeFor(nodePath string) string {
+	if nodePath != "" && path.Ext(nodePath) != "" {
+		return "file"
+	}
+	return "dir"
 }
 
 // SetReview marks a function as reviewed or unreviewed for the current commit.

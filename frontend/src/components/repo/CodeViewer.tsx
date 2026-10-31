@@ -333,12 +333,19 @@ export function CodeViewer({
     }
   }
 
+  const notifyCoverageChanged = () => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("insight:coverage-changed"))
+    }
+  }
+
   const toggleReviewed = async (fn: CoverageFunction) => {
     if (!coverage || reviewing) return
     setReviewing(fn.id)
     try {
       const next = await api.reviewFunction(repo.id, fn.id, !fn.reviewed)
       setCoverage(next)
+      notifyCoverageChanged()
     } catch (err) {
       setCoverageError(err instanceof Error ? err.message : t("coverage.error"))
     } finally {
@@ -405,6 +412,7 @@ export function CodeViewer({
         const cur = await api.getCoverage(repo.id, path)
         setCoverage(cur)
       }
+      notifyCoverageChanged()
       toast.success(reviewed ? `已标记 ${todo.length} 个函数为已读` : `已取消 ${todo.length} 个`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("coverage.error"))
@@ -427,6 +435,7 @@ export function CodeViewer({
       if (path) {
         const next = await api.getCoverage(repo.id, path)
         setCoverage(next)
+        notifyCoverageChanged()
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("coverage.error"))

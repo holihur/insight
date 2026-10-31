@@ -17,7 +17,8 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn, formatNumber, languageColor } from "@/lib/utils"
-import type { IndexData, Page, Repo, TreeNode } from "@/lib/types"
+import type { CoverageTree, IndexData, Page, Repo, TreeNode } from "@/lib/types"
+import { CoveragePill } from "@/components/repo/CoveragePill"
 import { useI18n } from "@/i18n"
 
 export type RepoView = "wiki" | "code"
@@ -43,6 +44,7 @@ export function WikiSidebar({
   onSelectFile,
   activeDir,
   onSelectDir,
+  coverage,
   className,
 }: {
   repo: Repo
@@ -56,6 +58,7 @@ export function WikiSidebar({
   onSelectFile: (path: string) => void
   activeDir: string | null
   onSelectDir: (path: string) => void
+  coverage?: CoverageTree | null
   className?: string
 }) {
   const { t } = useI18n()
@@ -281,6 +284,7 @@ export function WikiSidebar({
                   onSelectFile={onSelectFile}
                   activeDir={activeDir}
                   onSelectDir={onSelectDir}
+                  coverage={coverage}
                 />
               )}
               <p className="mt-2 px-2 font-mono text-[9px] text-muted-foreground/60">↑↓ 导航 · Enter 打开 · / 搜索</p>
@@ -341,6 +345,7 @@ function Tree({
   onSelectFile,
   activeDir,
   onSelectDir,
+  coverage,
 }: {
   node: TreeNode
   depth: number
@@ -350,6 +355,7 @@ function Tree({
   onSelectFile: (path: string) => void
   activeDir: string | null
   onSelectDir: (path: string) => void
+  coverage?: CoverageTree | null
 }) {
   if (node.type === "file") {
     return (
@@ -367,6 +373,7 @@ function Tree({
       >
         <FileText className="size-3 shrink-0 opacity-50" />
         <span className="truncate">{node.name}</span>
+        <CoveragePill node={coverage?.nodes[node.path]} className="ml-auto pr-1" />
       </button>
     )
   }
@@ -416,6 +423,7 @@ function Tree({
               <Folder className="size-3 shrink-0 opacity-60" />
             )}
             <span className="truncate font-medium">{node.name}</span>
+            <CoveragePill node={coverage?.nodes[node.path]} className="ml-auto pr-1" />
           </button>
         </div>
       )}
@@ -431,6 +439,7 @@ function Tree({
             onSelectFile={onSelectFile}
             activeDir={activeDir}
             onSelectDir={onSelectDir}
+            coverage={coverage}
           />
         ))}
     </div>

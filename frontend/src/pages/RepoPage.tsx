@@ -34,7 +34,7 @@ import { useRepo } from "@/hooks/useRepo"
 import { useChat } from "@/hooks/useChat"
 import { api } from "@/lib/api"
 import { cn, isActive } from "@/lib/utils"
-import type { IndexData, TreeNode } from "@/lib/types"
+import type { CoverageTree, IndexData, TreeNode } from "@/lib/types"
 import { useI18n } from "@/i18n"
 
 const CHAT_POSITION_KEY = "code-insight-chat-position"
@@ -87,6 +87,7 @@ export function RepoPage() {
   const [index, setIndex] = useState<IndexData | null>(null)
   const [indexLoading, setIndexLoading] = useState(false)
   const [indexError, setIndexError] = useState<string | null>(null)
+  const [coverageTree, setCoverageTree] = useState<CoverageTree | null>(null)
   const [navOpen, setNavOpen] = useState(false)
   const [chatPos, setChatPos] = useState<ChatPosition | null>(readChatPosition)
   const [chatDock, setChatDock] = useState<ChatDockMode>(() => readChatDock())
@@ -161,6 +162,31 @@ export function RepoPage() {
       )
       .finally(() => setIndexLoading(false))
   }, [view, index, indexLoading, repo])
+
+  useEffect(() => {
+    if (!repo || repo.status !== "ready") {
+      setCoverageTree(null)
+      return
+    }
+    let alive = true
+    const load = () => {
+      api
+        .getCoverageTree(repo.id)
+        .then((tree) => {
+          if (alive) setCoverageTree(tree)
+        })
+        .catch(() => {
+          if (alive) setCoverageTree(null)
+        })
+    }
+    load()
+    const onChanged = () => load()
+    window.addEventListener("insight:coverage-changed", onChanged)
+    return () => {
+      alive = false
+      window.removeEventListener("insight:coverage-changed", onChanged)
+    }
+  }, [repo?.id, repo?.commit, repo?.status])
 
   useEffect(() => {
     if (view !== "code" || activeFile || activeDir !== null || !index) return
@@ -402,6 +428,7 @@ export function RepoPage() {
       onSelectFile={handleSelectFile}
       activeDir={activeDir}
       onSelectDir={handleSelectDir}
+      coverage={coverageTree}
     />
   )
 
@@ -465,6 +492,7 @@ export function RepoPage() {
             <DirectoryView
               repo={repo}
               node={findNode(index.tree, activeDir) ?? index.tree}
+              coverage={coverageTree}
               onOpen={(path, kind) =>
                 kind === "dir" ? handleSelectDir(path) : handleSelectFile(path)
               }

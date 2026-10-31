@@ -249,3 +249,22 @@ export interface TraceResult {
   indexed: boolean
   reusedFiles?: number
 }
+
+export interface CoverageNode {
+  path: string
+  name: string
+  type: "dir" | "file"
+  total: number
+  reviewed: number
+  changed: number
+  reviewedChanged: number
+  percent: number
+  changedPercent: number
+}
+
+export interface CoverageTree {
+  commit: string
+  nodes: Record<string, CoverageNode>
+  overall: CoverageNode
+  updatedAt: string
+}

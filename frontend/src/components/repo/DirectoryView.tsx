@@ -12,7 +12,8 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { cn, formatNumber } from "@/lib/utils"
-import type { Repo, TreeNode } from "@/lib/types"
+import type { CoverageTree, Repo, TreeNode } from "@/lib/types"
+import { CoveragePill } from "@/components/repo/CoveragePill"
 import { useI18n } from "@/i18n"
 
 function countFiles(node: TreeNode): number {
@@ -34,10 +35,12 @@ function formatBytes(bytes: number): string {
 export function DirectoryView({
   repo,
   node,
+  coverage,
   onOpen,
 }: {
   repo: Repo
   node: TreeNode
+  coverage?: CoverageTree | null
   onOpen: (path: string, kind: "file" | "dir") => void
 }) {
   const { t } = useI18n()
@@ -139,10 +142,13 @@ export function DirectoryView({
               <h1 className="mt-1 font-serif text-3xl font-medium tracking-tight">
                 {node.name || repo.name}
               </h1>
-              <p className="mt-1 font-mono text-[11px] text-muted-foreground">
-                {formatNumber(dirs.length)} {t("dir.folders")} ·{" "}
-                {formatNumber(files.length)} {t("dir.files")} ·{" "}
-                {formatNumber(fileCount)} {t("common.files")} · {formatBytes(bytes)}
+              <p className="mt-1 flex items-center gap-2 font-mono text-[11px] text-muted-foreground">
+                <span>
+                  {formatNumber(dirs.length)} {t("dir.folders")} ·{" "}
+                  {formatNumber(files.length)} {t("dir.files")} ·{" "}
+                  {formatNumber(fileCount)} {t("common.files")} · {formatBytes(bytes)}
+                </span>
+                <CoveragePill node={coverage?.nodes[node.path]} showCounts className="text-[10px]" />
               </p>
             </div>
           </div>
@@ -177,6 +183,7 @@ export function DirectoryView({
                       <span className="hidden font-mono text-[10px] text-muted-foreground sm:block">
                         {countFiles(child)} {t("common.files")}
                       </span>
+                      <CoveragePill node={coverage?.nodes[child.path]} showCounts />
                       <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
                     </button>
                   ))}
@@ -198,7 +205,8 @@ export function DirectoryView({
                       <span className="min-w-0 flex-1 truncate font-mono text-[12px]">
                         {child.name}
                       </span>
-                      <span className="font-mono text-[10px] text-muted-foreground">
+                      <CoveragePill node={coverage?.nodes[child.path]} showCounts />
+                      <span className="hidden font-mono text-[10px] text-muted-foreground sm:inline">
                         {formatBytes(child.size ?? 0)}
                       </span>
                       <ChevronRight className="size-3.5 shrink-0 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
