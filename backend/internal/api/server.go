@@ -67,6 +67,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/repos/{id}/calls", s.getCalls)
 	mux.HandleFunc("GET /api/repos/{id}/callsites", s.getCallSites)
 	mux.HandleFunc("POST /api/repos/{id}/resolve", s.resolveSymbols)
+	mux.HandleFunc("GET /api/repos/{id}/trace", s.getTrace)
 	mux.HandleFunc("PUT /api/repos/{id}/ignore", s.updateIgnore)
 	mux.HandleFunc("POST /api/repos/{id}/chat", s.chatStream)
 	mux.Handle("/", s.staticHandler())
@@ -323,6 +324,37 @@ func (s *Server) getCalls(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, data)
+}
+
+func (s *Server) getTrace(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, err := s.store.Get(id); err != nil {
+		writeError(w, http.StatusNotFound, "repository not found")
+		return
+	}
+	functionID := strings.TrimSpace(r.URL.Query().Get("function"))
+	if functionID == "" {
+		writeError(w, http.StatusBadRequest, "function is required")
+		return
+	}
+	direction := r.URL.Query().Get("direction")
+	if direction != "callers" {
+		direction = "callees"
+	}
+	depth := queryInt(r, "depth", 2)
+	limit := queryInt(r, "limit", 10)
+	ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	defer cancel()
+	data, err := s.calls.Trace(ctx, id, functionID, direction, depth, limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if data.Root == nil {
+		writeError(w, http.StatusNotFound, "function not found in the call index")
 		return
 	}
 	writeJSON(w, http.StatusOK, data)

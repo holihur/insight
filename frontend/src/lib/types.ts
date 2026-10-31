@@ -231,3 +231,21 @@ export interface ResolveMatch {
   query: string
   candidates: ResolveCandidate[]
 }
+
+export interface TraceNode {
+  function: CallNode
+  path: string
+  line: number
+  confidence?: string
+  children?: TraceNode[] | null
+  truncated?: boolean
+  cycle?: boolean
+}
+
+export interface TraceResult {
+  root: TraceNode | null
+  direction: "callees" | "callers"
+  commit: string
+  indexed: boolean
+  reusedFiles?: number
+}

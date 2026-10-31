@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react"
-import { ArrowDownLeft, ArrowUpRight, FileCode2, Loader2, TriangleAlert } from "lucide-react"
+import { ArrowDownLeft, ArrowUpRight, FileCode2, GitBranch, Loader2, TriangleAlert } from "lucide-react"
+import { CallTrace } from "@/components/repo/CallTrace"
 import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
@@ -143,6 +144,9 @@ export function CallGraphDialog({
               <TabsTrigger value="callers" className="gap-1 text-[11px]">
                 <ArrowDownLeft className="size-3" /> {t("callgraph.callers")} ({data.callers.length})
               </TabsTrigger>
+              <TabsTrigger value="trace" className="gap-1 text-[11px]">
+                <GitBranch className="size-3" /> {t("callgraph.trace")}
+              </TabsTrigger>
             </TabsList>
             <p className="px-5 pb-1 pt-2 text-[10px] leading-relaxed text-muted-foreground">
               {t("callgraph.legend")}
@@ -162,6 +166,13 @@ export function CallGraphDialog({
                   empty={t("callgraph.noCallers")}
                   onJump={jump}
                   confidenceLabel={confidenceLabel}
+                />
+              </TabsContent>
+              <TabsContent value="trace" className="mt-0">
+                <CallTrace
+                  repoId={repoId}
+                  functionId={data.function.id}
+                  onNavigate={(path, line) => jump(path, line)}
                 />
               </TabsContent>
             </div>

@@ -8,6 +8,7 @@ import type {
   IndexData,
   Repo,
   ResolveMatch,
+  TraceResult,
 } from "@/lib/types"
 
 const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? "/api"
@@ -94,6 +95,16 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ queries }),
     }),
+
+  getTrace: (id: string, functionId: string, direction: "callees" | "callers", depth = 2, limit = 10) => {
+    const params = new URLSearchParams({
+      function: functionId,
+      direction,
+      depth: String(depth),
+      limit: String(limit),
+    })
+    return request<TraceResult>(`/repos/${id}/trace?${params.toString()}`)
+  },
 
   getCallSites: (id: string, path: string) =>
     request<CallSitesResult>(`/repos/${id}/callsites?path=${encodeURIComponent(path)}`),
