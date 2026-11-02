@@ -224,6 +224,7 @@ const rows: Row[] = [
   ["callgraph.close", "Close", "关闭", "Cerrar", "बंद करें", "إغلاق", "Fechar", "Закрыть", "閉じる", "Fermer", "Schließen"],
   ["callgraph.onlyDefinition", "This is the only definition in this commit.", "该 commit 中只有这一个定义。", "Esta es la única definición en este commit.", "इस कमिट में यही एकमात्र परिभाषा है।", "هذا هو التعريف الوحيد في هذا الإيداع.", "Esta é a única definição neste commit.", "В этом коммите это единственное определение.", "このコミットにはこの定義しかありません。", "C'est la seule définition de ce commit.", "Dies ist die einzige Definition in diesem Commit."],
   ["callgraph.reused", "{count} reused", "{count} 个复用", "{count} reutilizados", "{count} पुनः उपयोग", "تمت إعادة استخدام {count}", "{count} reutilizados", "{count} переиспользовано", "{count} 件再利用", "{count} réutilisés", "{count} wiederverwendet"],
+  ["palette.symbols", "Symbols", "符号", "Símbolos", "प्रतीक", "رموز", "Símbolos", "Символы", "シンボル", "Symboles", "Symbole"],
   ["callgraph.trace", "Trace", "调用链", "Rastro", "ट्रेस", "تتبع", "Rastro", "Трассировка", "トレース", "Trace", "Aufrufpfad"],
   ["callgraph.outgoing", "Outgoing", "向外", "Salientes", "बाहर जाने वाले", "صادرة", "Saída", "Исходящие", "外向き", "Sortants", "Ausgehend"],
   ["callgraph.incoming", "Incoming", "向内", "Entrantes", "आने वाले", "واردة", "Entrada", "Входящие", "内向き", "Entrants", "Eingehend"],

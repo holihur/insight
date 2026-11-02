@@ -23,7 +23,7 @@ import (
 )
 
 // Version is bumped whenever the on-disk graph layout changes.
-const Version = 1
+const Version = 2
 
 // Node is a function or method definition.
 type Node struct {
@@ -73,6 +73,7 @@ type Graph struct {
 	Nodes       map[string]Node   `json:"nodes"`
 	Edges       []Edge            `json:"edges"`
 	Sites       map[string][]Site `json:"sites"`
+	Symbols     []SymbolRef       `json:"symbols,omitempty"`
 	GoFiles     int               `json:"goFiles"`
 	Files       int               `json:"files"`
 	ReusedFiles int               `json:"reusedFiles,omitempty"`
@@ -144,6 +145,7 @@ type builder struct {
 	js         *jsIndex
 	fileCount  int
 	parseCache *parseCache
+	symbols    []SymbolRef
 	truncated  bool
 	maxFiles   int
 }
@@ -186,6 +188,7 @@ func Build(commit, root string, ignore []string, maxFiles int, caches ...*parseC
 		Version:   Version,
 		Commit:    commit,
 		Nodes:     b.nodes,
+		Symbols:   b.symbols,
 		Edges:     b.edges,
 		Sites:     b.sites,
 		GoFiles:   len(b.files),
@@ -326,6 +329,7 @@ func (b *builder) collectGoFile(p, rel string, d fs.DirEntry, ig interface{ Igno
 		}
 	}
 	b.collectDecls(fi, file)
+	b.symbols = append(b.symbols, goSymbolRefs(rel, content, b.fset)...)
 	return nil
 }
 func (b *builder) collectDecls(fi *fileInfo, file *ast.File) {

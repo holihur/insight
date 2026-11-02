@@ -69,6 +69,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/repos/{id}/callsites", s.getCallSites)
 	mux.HandleFunc("POST /api/repos/{id}/resolve", s.resolveSymbols)
 	mux.HandleFunc("GET /api/repos/{id}/trace", s.getTrace)
+	mux.HandleFunc("GET /api/repos/{id}/symbols", s.searchSymbols)
 	mux.HandleFunc("PUT /api/repos/{id}/ignore", s.updateIgnore)
 	mux.HandleFunc("POST /api/repos/{id}/chat", s.chatStream)
 	mux.Handle("/", s.staticHandler())
@@ -328,6 +329,28 @@ func (s *Server) getCalls(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, data)
+}
+
+func (s *Server) searchSymbols(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, err := s.store.Get(id); err != nil {
+		writeError(w, http.StatusNotFound, "repository not found")
+		return
+	}
+	query := strings.TrimSpace(r.URL.Query().Get("q"))
+	if query == "" {
+		writeJSON(w, http.StatusOK, map[string]any{"symbols": []any{}})
+		return
+	}
+	limit := queryInt(r, "limit", 20)
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	data, err := s.calls.SearchSymbols(ctx, id, query, limit)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"symbols": data})
 }
 
 func (s *Server) getTrace(w http.ResponseWriter, r *http.Request) {

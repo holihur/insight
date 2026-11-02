@@ -120,6 +120,7 @@ func (b *builder) buildJS() {
 		file.lineStarts = lineStartsOf(file.content)
 		lang := analysis.LanguageFor(filePath)
 		funcs := analysis.ExtractFunctions(filePath, []byte(file.content), lang)
+		b.symbols = append(b.symbols, extractSymbolRefs(filePath, lang, []byte(file.content))...)
 		var defs []tsDef
 		var calls []tsCall
 		parsed := true

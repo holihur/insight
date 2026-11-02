@@ -268,3 +268,11 @@ export interface CoverageTree {
   overall: CoverageNode
   updatedAt: string
 }
+
+export interface SymbolHit {
+  id: string
+  name: string
+  kind: "function" | "method" | "class" | "variable" | string
+  path: string
+  line: number
+}

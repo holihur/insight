@@ -9,6 +9,7 @@ import type {
   IndexData,
   Repo,
   ResolveMatch,
+  SymbolHit,
   TraceResult,
 } from "@/lib/types"
 
@@ -98,6 +99,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ queries }),
     }),
+
+  searchSymbols: (id: string, query: string, limit = 12) => {
+    const params = new URLSearchParams({ q: query, limit: String(limit) })
+    return request<{ symbols: SymbolHit[] }>(`/repos/${id}/symbols?${params.toString()}`)
+  },
 
   getTrace: (id: string, functionId: string, direction: "callees" | "callers", depth = 2, limit = 10) => {
     const params = new URLSearchParams({

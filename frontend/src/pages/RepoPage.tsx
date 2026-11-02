@@ -538,7 +538,16 @@ export function RepoPage() {
         </DialogContent>
       </Dialog>
 
-      <CommandPalette pages={pages} index={index} open={paletteOpen} onOpenChange={setPaletteOpen} onSelectFile={handleSelectFile} onSelectSlug={handleSelectSlug} />
+      <CommandPalette
+        repoId={repo.id}
+        pages={pages}
+        index={index}
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        onSelectFile={handleSelectFile}
+        onSelectSymbol={(path, line) => handleSelectFileWithLines(path, [line, line])}
+        onSelectSlug={handleSelectSlug}
+      />
 
       {chatOpen && chatDock === "floating" && (
         <div
